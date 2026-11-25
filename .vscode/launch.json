@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        
+        {
+            "type": "java",
+            "name": "Spring Boot-CourtlyApplication<courtly>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.scd.courtly.CourtlyApplication",
+            "projectName": "courtly",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

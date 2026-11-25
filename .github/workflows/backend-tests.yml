@@ -1,0 +1,82 @@
+# Runs the backend JUnit test suite automatically on GitHub.
+#   • every push to any branch
+#   • every pull request into main or dev
+#   • manually from the "Actions" tab ("Run workflow")
+# Results appear as a ✔ / ✘ next to each commit and pull request.
+name: Backend tests
+
+on:
+  push:
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the run that is still in progress
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: JUnit (unit + integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/backend
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven            # reuses downloaded dependencies between runs
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Unit tests (fast, no Spring)
+        run: ./mvnw -B test -Dgroups=unit
+
+      # Runs every test NOT tagged "unit", so a new test without a tag is never skipped
+      - name: Integration tests (full API through HTTP)
+        run: ./mvnw -B test -DexcludedGroups=unit
+
+      - name: Upload test reports
+        if: always()              # keep reports even when tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: src/backend/target/surefire-reports/
+          retention-days: 14
+
+      - name: Write test summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          total = failed = skipped = 0
+          failures = []
+          for f in glob.glob("target/surefire-reports/TEST-*.xml"):
+              suite = ET.parse(f).getroot()
+              for case in suite.iter("testcase"):
+                  total += 1
+                  if case.find("skipped") is not None:
+                      skipped += 1
+                  elif case.find("failure") is not None or case.find("error") is not None:
+                      failed += 1
+                      failures.append(f"{case.get('classname')} › {case.get('name')}")
+          status = "✅ All tests passed" if failed == 0 else f"❌ {failed} test(s) failed"
+          print(f"## {status}\n")
+          print(f"| Total | Passed | Failed | Skipped |\n|---|---|---|---|")
+          print(f"| {total} | {total - failed - skipped} | {failed} | {skipped} |\n")
+          for name in failures:
+              print(f"- `{name}`")
+          PY

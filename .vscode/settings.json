@@ -1,0 +1,5 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "debug.java.checkBuildStatus": false,
+    "liveServer.settings.port": 5501
+}

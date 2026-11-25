@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Courtly | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-900 font-['Inter'] text-slate-100 min-h-screen relative overflow-x-hidden">
+
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+    <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-teal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+
+    <nav class="relative z-10 bg-slate-800/80 backdrop-blur-md border-b border-slate-700 px-8 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-white tracking-tight">Courtly</h1>
+            <span class="text-slate-600">|</span>
+            <span class="text-sm text-slate-400 font-medium">Player Dashboard</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold" id="welcomeAvatar">P</div>
+                <span id="welcomeMsg" class="text-sm text-slate-300 font-medium">Welcome, Player</span>
+            </div>
+
+            <!-- Notification Bell -->
+            <div class="relative" id="notifContainer">
+                <button id="notifBell" onclick="notificationController.toggleDropdown()"
+                    class="relative w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span id="notifBadge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">0</span>
+                </button>
+                <div id="notifDropdown" class="hidden w-80 rounded-2xl shadow-2xl overflow-hidden"
+                     style="position:fixed;z-index:9999;background-color:#0f172a;border:1px solid #334155;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #1e293b;">
+                        <span style="font-size:0.85rem;font-weight:600;color:#f1f5f9;">Notifications</span>
+                        <div style="display:flex;align-items:center;gap:10px">
+                            <button onclick="notificationController.markAllRead()" style="font-size:0.72rem;color:#818cf8;background:none;border:none;cursor:pointer;padding:0;">Mark all read</button>
+                            <span style="color:#334155;font-size:0.65rem">|</span>
+                            <button onclick="notificationController.clearAll()" style="font-size:0.72rem;color:#f87171;background:none;border:none;cursor:pointer;padding:0;">Clear all</button>
+                        </div>
+                    </div>
+                    <div id="notifList" style="max-height:340px;overflow-y:auto;">
+                        <p style="text-align:center;padding:2.5rem 0;font-size:0.82rem;color:#475569;">No notifications yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="verifyNavBtn" onclick="window.location.href='verification.html'"
+                class="text-sm bg-teal-700 hover:bg-teal-600 px-4 py-2 rounded-md transition-colors">
+                Verify Account
+            </button>
+            <button onclick="changePasswordController.open()" class="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-md transition-colors">Change Password</button>
+            <button onclick="logout()" class="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-md transition-colors">Logout</button>
+        </div>
+    </nav>
+
+    <main class="relative z-10 max-w-6xl mx-auto p-8 space-y-8 fade-in">
+
+        <!-- Row 1: Court Search + Quick Book -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+            <div class="md:col-span-2 bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-6 rounded-2xl shadow-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">📅 Court Availability</h2>
+
+                <div class="flex gap-4 mb-6 flex-wrap">
+                    <input type="date" id="searchDate"
+                        class="bg-slate-900/50 border border-slate-600 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <select id="courtType"
+                        class="bg-slate-900/50 border border-slate-600 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="TENNIS">Tennis</option>
+                        <option value="CRICKET">Cricket</option>
+                        <option value="FOOTBALL">Football</option>
+                        <option value="BASKETBALL">Basketball</option>
+                        <option value="FUTSAL">Futsal</option>
+                        <option value="BADMINTON">Badminton</option>
+                        <option value="SQUASH">Squash</option>
+                        <option value="VOLLEYBALL">Volleyball</option>
+                    </select>
+                    <button onclick="dashboardController.searchAvailableSlots()"
+                        class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg font-medium transition-colors">
+                        Search
+                    </button>
+                </div>
+
+                <div id="slotsContainer" class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <p class="text-slate-400 text-sm col-span-full">Select a date and sport to view available slots.</p>
+                </div>
+            </div>
+
+            <!-- Quick Book -->
+            <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-6 rounded-2xl shadow-xl h-fit">
+                <h2 class="text-xl font-semibold mb-4">⚡ Quick Book</h2>
+                <form id="bookingForm" class="space-y-4">
+                    <!-- Hidden state fields -->
+                    <input type="hidden" id="bDate">
+                    <input type="hidden" id="bIsPeak">
+                    <input type="hidden" id="bCourtName">
+                    <input type="hidden" id="bCourtId">
+
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Selected Court</label>
+                        <input type="text" id="bCourtDisplay" readonly
+                            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-500"
+                            placeholder="Select a slot first">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Time Slot</label>
+                        <input type="text" id="bTimeSlot" readonly
+                            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-500"
+                            placeholder="--:--">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Price</label>
+                        <input type="text" id="bPriceDisplay" readonly
+                            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-500"
+                            placeholder="---">
+                    </div>
+
+                    <div id="peakWarning" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                        <p class="text-xs text-amber-400 font-medium">⚡ Peak hours — surcharge applied</p>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-700 mt-4 space-y-2">
+                        <button type="button" id="bookNowBtn" disabled
+                            onclick="dashboardController.bookNowOnly()"
+                            class="w-full py-3 bg-slate-700 hover:bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded-lg transition-all">
+                            Book Now <span class="text-xs opacity-75">(Pay within 60 min)</span>
+                        </button>
+                        <button type="button" id="initiateBtn" disabled
+                            onclick="dashboardController.initiateBooking()"
+                            class="w-full py-3 bg-teal-600 disabled:bg-slate-700 disabled:text-slate-500 hover:bg-teal-500 text-white font-medium rounded-lg transition-all">
+                            Book &amp; Pay Now
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+        <!-- Row 2: My Bookings -->
+        <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-6 rounded-2xl shadow-xl">
+            <div class="flex justify-between items-center mb-5">
+                <h2 class="text-xl font-semibold flex items-center gap-2">🏆 My Bookings</h2>
+                <button onclick="dashboardController.loadMyBookings()"
+                    class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+                    ↻ Refresh
+                </button>
+            </div>
+
+            <div class="flex gap-2 mb-5">
+                <button id="tab-all" onclick="dashboardController.filterBookings('all')"
+                    class="px-4 py-1.5 rounded-full text-sm font-medium bg-indigo-600 text-white transition-all">All</button>
+                <button id="tab-upcoming" onclick="dashboardController.filterBookings('upcoming')"
+                    class="px-4 py-1.5 rounded-full text-sm font-medium bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">Upcoming</button>
+                <button id="tab-past" onclick="dashboardController.filterBookings('past')"
+                    class="px-4 py-1.5 rounded-full text-sm font-medium bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">Past</button>
+            </div>
+
+            <div id="bookingsContainer" class="space-y-3">
+                <p class="text-indigo-400 animate-pulse text-sm">Loading your bookings...</p>
+            </div>
+        </div>
+
+        <!-- Row 3: Verification Status + Profile (hidden, populated by JS) -->
+        <div id="verificationStatusCard" class="hidden backdrop-blur-xl border rounded-xl p-5"></div>
+
+        <div id="profileCard" class="hidden bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl p-6">
+            <div class="flex items-start justify-between mb-5">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">👤 My Profile</h2>
+                    <p class="text-slate-400 text-sm mt-0.5">Your personal details and account info</p>
+                </div>
+                <span id="tierBadge" class="hidden px-3 py-1.5 rounded-full text-xs font-medium"></span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Full Name</p>
+                    <p id="profileName" class="text-sm text-white font-medium">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
+                    <p id="profileEmail" class="text-sm text-white font-medium break-all">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
+                    <p id="profilePhone" class="text-sm text-white font-medium">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Date of Birth</p>
+                    <p id="profileDob" class="text-sm text-white font-medium">—</p>
+                </div>
+            </div>
+            <div class="border-t border-slate-700 pt-4 flex justify-between items-center">
+                <p class="text-xs text-slate-500">Account type: <span class="text-slate-400 font-medium">Player</span>
+                    <span class="mx-1.5">·</span>Sign-in: <span id="profileAuthProvider" class="text-slate-400 font-medium">—</span></p>
+                <button onclick="dashboardController.openDeleteModal()"
+                    class="text-xs px-4 py-2 bg-rose-900/40 hover:bg-rose-800/60 text-rose-300 border border-rose-700/40 rounded-lg transition-colors">
+                    🗑 Delete Account
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Cancel Booking Confirmation Modal -->
+    <div id="cancelModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="text-center mb-5">
+                <div class="w-14 h-14 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-2">Cancel Booking?</h3>
+                <p id="cancelModalDetails" class="text-sm text-slate-400 leading-relaxed"></p>
+            </div>
+            <p class="text-xs text-slate-500 text-center mb-5 bg-slate-900/50 rounded-lg px-3 py-2">
+                This action cannot be undone. The slot will be released for others to book.
+            </p>
+            <div class="flex gap-3">
+                <button onclick="dashboardController.closeCancelModal()"
+                    class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm font-medium transition-colors">
+                    Keep Booking
+                </button>
+                <button id="confirmCancelBtn" onclick="dashboardController.confirmCancel()"
+                    class="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(239,68,68,0.25)]">
+                    Yes, Cancel It
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Match Result Modal -->
+    <div id="matchResultModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-white">📊 Submit Match Result</h3>
+                <button onclick="matchController.closeModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div id="matchModalBookingInfo" class="bg-slate-900/60 rounded-xl p-3 mb-4 text-sm text-slate-300 leading-relaxed"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Opponent Name</label>
+                    <input type="text" id="matchOpponent" placeholder="e.g. John Doe"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Your Score</label>
+                        <input type="number" id="matchPlayerScore" min="0" value="0"
+                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Opponent Score</label>
+                        <input type="number" id="matchOpponentScore" min="0" value="0"
+                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:border-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Result</label>
+                    <div class="flex gap-3">
+                        <button onclick="matchController.selectResult('WIN')" id="resultBtnWIN"
+                            class="result-btn flex-1 py-2.5 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-teal-600 hover:text-white transition-all border border-slate-600">
+                            🏆 Win
+                        </button>
+                        <button onclick="matchController.selectResult('DRAW')" id="resultBtnDRAW"
+                            class="result-btn flex-1 py-2.5 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-amber-600 hover:text-white transition-all border border-slate-600">
+                            🤝 Draw
+                        </button>
+                        <button onclick="matchController.selectResult('LOSS')" id="resultBtnLOSS"
+                            class="result-btn flex-1 py-2.5 rounded-lg text-sm font-semibold bg-slate-700 text-slate-300 hover:bg-red-700 hover:text-white transition-all border border-slate-600">
+                            ❌ Loss
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="matchResultError" class="hidden mt-3 text-sm text-red-400 bg-red-500/10 rounded-lg p-2.5"></div>
+            <div class="flex gap-3 mt-5">
+                <button onclick="matchController.closeModal()"
+                    class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="submitMatchBtn" onclick="matchController.submitResult()"
+                    class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-all">
+                    Submit Result
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Facility Rating Modal -->
+    <div id="ratingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-white">⭐ Rate This Facility</h3>
+                <button onclick="ratingController.closeModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div id="ratingBookingInfo" class="bg-slate-900/60 rounded-xl p-3 mb-5 text-sm text-slate-300 leading-relaxed"></div>
+
+            <!-- Star selector -->
+            <div class="text-center mb-5">
+                <p class="text-sm text-slate-400 mb-3">How would you rate your experience?</p>
+                <div class="flex justify-center gap-3 mb-2">
+                    <span id="star1" onclick="ratingController.selectStar(1)" class="text-3xl cursor-pointer text-slate-600 hover:text-amber-300 transition-all hover:scale-110">☆</span>
+                    <span id="star2" onclick="ratingController.selectStar(2)" class="text-3xl cursor-pointer text-slate-600 hover:text-amber-300 transition-all hover:scale-110">☆</span>
+                    <span id="star3" onclick="ratingController.selectStar(3)" class="text-3xl cursor-pointer text-slate-600 hover:text-amber-300 transition-all hover:scale-110">☆</span>
+                    <span id="star4" onclick="ratingController.selectStar(4)" class="text-3xl cursor-pointer text-slate-600 hover:text-amber-300 transition-all hover:scale-110">☆</span>
+                    <span id="star5" onclick="ratingController.selectStar(5)" class="text-3xl cursor-pointer text-slate-600 hover:text-amber-300 transition-all hover:scale-110">☆</span>
+                </div>
+                <p id="starLabel" class="text-sm font-medium text-amber-400 h-5"></p>
+            </div>
+
+            <!-- Feedback text -->
+            <div class="mb-4">
+                <label class="block text-sm text-slate-400 mb-1.5">Feedback <span class="text-slate-500">(optional)</span></label>
+                <textarea id="ratingFeedback" rows="3" placeholder="e.g. Great court, well maintained. Staff was helpful."
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 text-sm focus:border-amber-500 focus:outline-none resize-none"></textarea>
+            </div>
+
+            <div id="ratingError" class="hidden mb-3 text-sm text-red-400 bg-red-500/10 rounded-lg p-2.5"></div>
+            <div class="flex gap-3">
+                <button onclick="ratingController.closeModal()"
+                    class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="submitRatingBtn" onclick="ratingController.submitRating()"
+                    class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-all">
+                    Submit Rating
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Modal -->
+    <div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-md shadow-2xl fade-in">
+            <h3 class="text-lg font-semibold text-white mb-1">⚠️ Delete Your Account?</h3>
+            <p class="text-slate-400 text-sm mb-4">Your account will be scheduled for permanent deletion in <span class="text-rose-400 font-medium">7 days</span>. You will be logged out immediately and will not be able to log back in. To reverse this, you must contact the admin.</p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="dashboardController.confirmDelete()"
+                    class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition-colors">
+                    Yes, Delete My Account
+                </button>
+                <button onclick="dashboardController.closeDeleteModal()"
+                    class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Deletion Full-Page Overlay -->
+    <div id="pendingDeletionOverlay" class="hidden fixed inset-0 z-40 bg-slate-900 flex items-center justify-center">
+        <div class="text-center p-8 max-w-lg">
+            <p class="text-6xl mb-6">🗑️</p>
+            <h2 class="text-2xl font-semibold text-white mb-3">Account Deletion Requested</h2>
+            <p class="text-slate-400 mb-2">Your account and all associated data will be permanently deleted in <span class="text-rose-400 font-medium">7 days</span>.</p>
+            <p class="text-slate-500 text-sm mb-8">To cancel this request, contact: <span class="text-teal-400">admin@lhr.nu.edu.pk</span></p>
+            <button onclick="window.location.href='index.html'"
+                class="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors">
+                Logout →
+            </button>
+        </div>
+    </div>
+
+    
+
+    
+
+    <script src="app.js"></script>
+    <script src="mvc/models/oauth-model.js"></script>
+    <script src="mvc/controllers/dashboard-controller.js"></script>
+</body>
+</html>

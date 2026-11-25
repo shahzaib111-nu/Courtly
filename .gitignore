@@ -1,0 +1,21 @@
+# Build output
+target/
+*.class
+*.jar
+*.war
+
+# H2 database files
+database/*.mv.db
+database/*.trace.db
+src/backend/database/*.mv.db
+src/backend/database/*.trace.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets: Stripe, Gmail, JWT, OAuth2 (template: secrets.example.yml)
+src/backend/src/main/resources/secrets.yml
+
+# IDE settings
+.idea/
