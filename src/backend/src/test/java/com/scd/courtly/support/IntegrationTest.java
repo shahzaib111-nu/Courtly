@@ -7,6 +7,7 @@ import com.scd.courtly.repository.BookingRepository;
 import com.scd.courtly.repository.PlayerRepository;
 import com.scd.courtly.security.JwtService;
 import com.scd.courtly.service.EmailService;
+import com.scd.courtly.service.PaymentGateway;
 import com.scd.courtly.service.SchedulerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
  *   <li>Every test runs in a transaction that is rolled back afterwards, so tests never affect each other.</li>
  *   <li>{@link EmailService} is mocked, so no real e-mail is ever sent.</li>
  *   <li>{@link SchedulerService} is mocked, so background jobs cannot change data during a test.</li>
+ *   <li>{@link PaymentGateway} is mocked, so tests never call the real Stripe API.</li>
  * </ul>
  * All subclasses share one cached application context, so the app only starts once.
  */
@@ -51,6 +53,7 @@ public abstract class IntegrationTest {
 
     @MockitoBean protected EmailService emailService;
     @MockitoBean protected SchedulerService schedulerService;
+    @MockitoBean protected PaymentGateway paymentGateway;   // never call the real Stripe API
 
     @BeforeEach
     void stubEmail() {

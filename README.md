@@ -114,6 +114,17 @@ Hibernate (`ddl-auto=update`) adds two columns to `app_users` on the next start:
 | Controller | `OAuth2Controller`, `OAuth2LoginSuccessHandler` / `FailureHandler` | `mvc/controllers/oauth-controller.js` |
 | Service | `OAuth2AccountService`, `CustomOAuth2UserService` | — |
 
+## Payments (Stripe test mode)
+
+The server is the single source of truth for what a player pays:
+
+1. `POST /api/payments/create-payment-intent { bookingID }`: the server checks the booking belongs to the caller and is still `PENDING`, takes the price from the booking (including peak/weekend rates and discounts) and creates a Stripe PaymentIntent.
+2. The checkout page charges the card with Stripe.js. Card numbers never reach the Courtly server.
+3. `POST /api/payments/confirm { bookingID, paymentIntentID }`: the server asks Stripe whether the payment really succeeded and for the right amount. It then saves a `Payment` (receipt number `CRT-YYYYMMDD-XXXXXX`, card brand and **last four digits only**) and marks the booking `CONFIRMED`. Calling it twice is safe.
+4. `GET /api/payments/booking/{bookingID}`: the receipt, visible only to the player who paid or an admin.
+
+If a booking expires while the player is paying, the payment is refunded automatically. Test card: `4242 4242 4242 4242`, any future expiry date and any CVC.
+
 ## Running the Tests
 
 ```bash
@@ -139,7 +150,7 @@ Each integration test runs in a transaction that is rolled back, so tests are in
 ## DTO Architecture
 
 - Typed request DTOs in `com.scd.courtly.dto.request` validate authentication, booking, rating, match, payment, and maintenance payloads.
-- Typed response DTOs in `com.scd.courtly.dto.response` are used for login, profile, registration, payment intent, unread notifications, and maintenance responses.
+- Typed response DTOs in `com.scd.courtly.dto.response` are used for login, profile, registration, checkout, payment receipts, unread notifications, and maintenance responses.
 - Jakarta validation provides field-level `400` responses.
 - Controllers no longer accept generic `Map<String,Object>` request payloads for core operations.
 

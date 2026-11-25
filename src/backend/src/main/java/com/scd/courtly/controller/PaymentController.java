@@ -1,46 +1,46 @@
 package com.scd.courtly.controller;
 
-import com.stripe.Stripe;
-import com.stripe.exception.StripeException;
-import com.stripe.model.PaymentIntent;
-import com.stripe.param.PaymentIntentCreateParams;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.scd.courtly.dto.request.PaymentIntentRequest;
-import com.scd.courtly.dto.response.PaymentIntentResponse;
+import com.scd.courtly.dto.request.CheckoutRequest;
+import com.scd.courtly.dto.request.PaymentConfirmRequest;
+import com.scd.courtly.dto.response.CheckoutResponse;
+import com.scd.courtly.dto.response.PaymentReceiptResponse;
+import com.scd.courtly.service.PaymentService;
 import jakarta.validation.Valid;
-import java.util.HashMap;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
+/**
+ * Card payments for bookings.
+ *
+ *  POST /api/payments/create-payment-intent  { bookingID }                  → amount + Stripe client secret
+ *  POST /api/payments/confirm                { bookingID, paymentIntentID } → receipt (booking becomes CONFIRMED)
+ *  GET  /api/payments/booking/{bookingID}                                   → receipt (owner or admin)
+ */
 @RestController
 @RequestMapping("/api/payments")
+@RequiredArgsConstructor
 public class PaymentController {
 
-    @Value("${stripe.api.secret.key}")
-    private String stripeSecretKey;
+    private final PaymentService paymentService;
 
     @PostMapping("/create-payment-intent")
     @PreAuthorize("hasRole('USER')")
-    public PaymentIntentResponse createPaymentIntent(@Valid @RequestBody(required = false) PaymentIntentRequest request)
-            throws StripeException {
-        Stripe.apiKey = stripeSecretKey;
+    public CheckoutResponse createPaymentIntent(@Valid @RequestBody CheckoutRequest request, Authentication auth) {
+        return paymentService.startCheckout(request.bookingID(), auth.getName());
+    }
 
-        long amount = 500L;
-        if (request != null && request.amount() != null) {
-            amount = request.amount();
-        }
+    @PostMapping("/confirm")
+    @PreAuthorize("hasRole('USER')")
+    public PaymentReceiptResponse confirm(@Valid @RequestBody PaymentConfirmRequest request, Authentication auth) {
+        return paymentService.confirmPayment(request.bookingID(), request.paymentIntentID(), auth.getName());
+    }
 
-        PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
-                .setAmount(amount * 100L)
-                .setCurrency("pkr")
-                .build();
-
-        PaymentIntent intent = PaymentIntent.create(params);
-        return new PaymentIntentResponse(intent.getClientSecret());
+    @GetMapping("/booking/{bookingID}")
+    @PreAuthorize("hasRole('USER')")
+    public PaymentReceiptResponse receipt(@PathVariable String bookingID, Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return paymentService.getReceipt(bookingID, auth.getName(), isAdmin);
     }
 }

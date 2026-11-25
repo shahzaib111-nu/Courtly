@@ -995,24 +995,29 @@ const dashboardController = {
         }
 
         btn.textContent = 'Locking Slot...'; btn.disabled = true;
-        const playerID = localStorage.getItem('playerID') || 'guest';
+        const playerID = localStorage.getItem('playerID');
+        if (!playerID) {
+            showPopup('Please sign in again to book a court.');
+            btn.textContent = 'Proceed to Checkout'; btn.disabled = false;
+            return;
+        }
         try {
-            const res = await fetch(BOOKING_API, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ playerID, courtID: courtId, bookingDate: date, timeSlot })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Booking failed');
-
-            const bookingID = data.bookingID || '';
-            window.location.href = `checkout.html?bookingID=${bookingID}&court=${encodeURIComponent(courtName)}&time=${encodeURIComponent(timeSlot)}&price=${price}&isPeak=${isPeak ? 1 : 0}&date=${encodeURIComponent(date)}`;
-        } catch (err) {
-            if (err instanceof TypeError) {
-                const mockID = 'MOCK-' + Date.now();
-                window.location.href = `checkout.html?bookingID=${mockID}&court=${encodeURIComponent(courtName)}&time=${encodeURIComponent(timeSlot)}&price=${price}&isPeak=${isPeak ? 1 : 0}&date=${encodeURIComponent(date)}`;
-                return;
+            let res;
+            try {
+                res = await fetch(BOOKING_API, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ playerID, courtID: courtId, bookingDate: date, timeSlot })
+                });
+            } catch {
+                throw new Error(`Cannot connect to server. Make sure the backend is running at ${API_BASE}.`);
             }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || data.error || 'Booking failed. Please try again.');
+
+            // Checkout loads price and details from the server; only the booking ID is passed.
+            window.location.href = `checkout.html?bookingID=${encodeURIComponent(data.bookingID)}`;
+        } catch (err) {
             showPopup(err.message);
             btn.textContent = 'Proceed to Checkout'; btn.disabled = false;
         }
@@ -1130,15 +1135,8 @@ const dashboardController = {
     resumeBooking(bookingID) {
         const b = this.allBookings.find(x => x.bookingID === bookingID);
         if (!b) return;
-        const params = new URLSearchParams({
-            bookingID: b.bookingID,
-            court:     b.courtName  || b.courtID,
-            time:      b.timeSlot,
-            price:     b.totalCost  || 0,
-            isPeak:    b.peakHour   ? 1 : 0,
-            date:      b.date       || ''
-        });
-        window.location.href = `checkout.html?${params.toString()}`;
+        // Checkout loads price and details from the server; only the booking ID is passed.
+        window.location.href = `checkout.html?bookingID=${encodeURIComponent(b.bookingID)}`;
     },
 
     _cancelTargetID: null,
@@ -1524,16 +1522,13 @@ const facilityController = {
     allCourts: [],
     editingId: null,
 
-    _defaultCourts: [
-        { courtID: 'CRT-001', name: 'Main Tennis Court',      sportType: 'TENNIS',     hourlyRate: 500, capacity: 4,  openTime: '08:00', closeTime: '22:00', slotDurationMinutes: 60, status: 'AVAILABLE',   description: 'Professional hard court with floodlights' },
-        { courtID: 'CRT-002', name: 'Indoor Basketball Arena', sportType: 'BASKETBALL', hourlyRate: 800, capacity: 10, openTime: '09:00', closeTime: '21:00', slotDurationMinutes: 60, status: 'AVAILABLE',   description: 'Full-size maple hardwood floor' },
-        { courtID: 'CRT-003', name: 'Futsal Ground A',         sportType: 'FUTSAL',     hourlyRate: 700, capacity: 12, openTime: '10:00', closeTime: '23:00', slotDurationMinutes: 60, status: 'MAINTENANCE', description: 'Premium astroturf surface' },
-        { courtID: 'CRT-004', name: 'Cricket Net Zone',        sportType: 'CRICKET',    hourlyRate: 400, capacity: 6,  openTime: '07:00', closeTime: '19:00', slotDurationMinutes: 60, status: 'AVAILABLE',   description: 'Two nets with bowling machines' },
-        { courtID: 'CRT-005', name: 'Badminton Hall 1',        sportType: 'BADMINTON',  hourlyRate: 300, capacity: 4,  openTime: '08:00', closeTime: '22:00', slotDurationMinutes: 60, status: 'CLOSED',      description: 'Air-conditioned indoor hall' }
-    ],
-
-    _getLocal()        { const d = localStorage.getItem('fm_courts'); return d ? JSON.parse(d) : JSON.parse(JSON.stringify(this._defaultCourts)); },
-    _saveLocal(courts) { localStorage.setItem('fm_courts', JSON.stringify(courts)); },
+    /** Reads an error message from a failed API response. */
+    async _errorText(res, fallback) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) return 'Your session has expired. Please sign in again.';
+        if (res.status === 403) return data.message || 'You are not allowed to change this court.';
+        return data.message || data.error || fallback;
+    },
 
     async loadCourts() {
         const grid = document.getElementById('courtsGrid');
@@ -1543,9 +1538,14 @@ const facilityController = {
             const res = await fetch(COURT_API);
             if (!res.ok) throw new Error();
             this.allCourts = await res.json();
-            this._saveLocal(this.allCourts);
         } catch {
-            this.allCourts = this._getLocal();
+            grid.innerHTML = `
+                <div class="col-span-full text-center py-10">
+                    <p class="text-red-400 text-sm font-medium">Could not load courts from the server.</p>
+                    <p class="text-slate-500 text-xs mt-1">Make sure the backend is running at ${API_BASE}.</p>
+                    <button onclick="facilityController.loadCourts()" class="mt-3 text-xs px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg">Retry</button>
+                </div>`;
+            return;
         }
         this.updateStats();
         this.renderCourts(this.allCourts);
@@ -1684,38 +1684,42 @@ const facilityController = {
         try {
             const url    = this.editingId ? `${COURT_API}/${this.editingId}` : COURT_API;
             const method = this.editingId ? 'PUT' : 'POST';
-            const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            if (!res.ok) throw new Error();
-            this.allCourts = await fetch(COURT_API).then(r => r.json());
-            this._saveLocal(this.allCourts);
-        } catch {
-            if (this.editingId) {
-                const idx = this.allCourts.findIndex(c => c.courtID === this.editingId);
-                if (idx !== -1) this.allCourts[idx] = { ...this.allCourts[idx], ...data };
-            } else {
-                this.allCourts.push({ ...data, courtID: 'CRT-' + Date.now() });
+            let res;
+            try {
+                res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            } catch {
+                throw new Error(`Cannot connect to server. Make sure the backend is running at ${API_BASE}. Nothing was saved.`);
             }
-            this._saveLocal(this.allCourts);
+            if (!res.ok) throw new Error(await this._errorText(res, 'The court could not be saved.'));
+        } catch (err) {
+            // Keep the form open with the user's input so they can retry.
+            btn.textContent = 'Save Court'; btn.disabled = false;
+            showPopup(err.message);
+            return;
         }
 
+        const wasEditing = !!this.editingId;
         btn.textContent = 'Save Court'; btn.disabled = false;
         this.closeModal();
-        this.updateStats();
-        this.renderCourts(this.allCourts);
+        await this.loadCourts();   // show exactly what the server stored
+        showPopup(wasEditing ? 'Court updated successfully.' : 'Court added successfully.');
     },
 
     deleteCourt(courtId, courtName) {
         showConfirm(`Delete "<strong>${courtName}</strong>"? This cannot be undone.`, async () => {
+            let res;
             try {
-                const res = await fetch(`${COURT_API}/${courtId}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error();
+                res = await fetch(`${COURT_API}/${courtId}`, { method: 'DELETE' });
             } catch {
-                /* offline — remove from local state */
+                showPopup(`Cannot connect to server. Make sure the backend is running at ${API_BASE}. The court was not deleted.`);
+                return;
             }
-            this.allCourts = this.allCourts.filter(c => c.courtID !== courtId);
-            this._saveLocal(this.allCourts);
-            this.updateStats();
-            this.renderCourts(this.allCourts);
+            if (!res.ok) {
+                showPopup(await this._errorText(res, 'The court could not be deleted.'));
+                return;
+            }
+            await this.loadCourts();
+            showPopup(`"${courtName}" was deleted.`);
         });
     },
 
