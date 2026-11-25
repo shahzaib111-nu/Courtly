@@ -5,7 +5,13 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bookings")
+@Table(name = "bookings", indexes = {
+    // The searches the app runs most (NFR 1.2: results within 3-4 s on 50,000 bookings)
+    @Index(name = "idx_booking_court_date", columnList = "courtID, bookingDate"),
+    @Index(name = "idx_booking_player",     columnList = "playerID"),
+    @Index(name = "idx_booking_status_date", columnList = "status, bookingDate"),
+    @Index(name = "idx_booking_status_confirmed", columnList = "status, confirmedAt")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

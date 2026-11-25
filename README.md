@@ -207,6 +207,49 @@ Keep a copy of this key. Documents cannot be read without it. If it is not set, 
 - Every notification e-mail is logged (`notification_deliveries`). A failed e-mail is retried up to 5 times with growing delays. Admins can see the log under *Notification E-mail Delivery*.
 - A court with upcoming (pending or confirmed) bookings cannot be deleted.
 
+## Backups and Restore (NFR 3.3)
+
+The backend backs up the whole database **at least every 7 days**. An hourly check makes a new backup whenever the newest one is older than 7 days, so a backup still happens if the server was off at the usual time. The newest 8 are kept. Admins can see the backups and start one under **Database Backups** on the admin page.
+
+| Setting (`application.properties` / `secrets.yml`) | Default | Meaning |
+|---|---|---|
+| `app.backup.dir` | `backups` (project root) | Folder for backups. **Set it to a cloud-synced folder** (Google Drive, OneDrive, Dropbox) so copies are kept off the machine. |
+| `app.backup.password` | empty | Put a password in `secrets.yml` to encrypt backups (AES). Encrypted backups end in `.enc`. |
+| `app.backup.interval-days` / `app.backup.keep` | 7 / 8 | How often, and how many to keep |
+
+**Restore (RTO under 4 hours, NFR 3.3.1)**: typically takes under a minute.
+
+1. Stop the backend.
+2. Restore the backup:
+   ```bash
+   ./scripts/restore-backup.sh backups/courtly-backup-YYYYMMDD-HHMMSS.zip     # Linux/macOS
+   scripts\restore-backup.bat backups\courtly-backup-YYYYMMDD-HHMMSS.zip   :: Windows
+   ```
+   Add the backup password as a second argument for `.enc` files.
+3. Start the backend.
+
+The script keeps the current database as `database/courtlydb.mv.db.before-restore-<time>`.
+
+**Also keep a safe copy of `secrets.yml`.** It holds `app.uploads.encryption-key`; without it, the uploaded ID documents inside a backup cannot be read.
+
+## Performance (NFR 1.1-1.3)
+
+`PerformanceTest` loads **50,000 bookings and 5,000 match results** and checks each request against the spec's limit. Measured on a 4-core laptop:
+
+| Request | NFR | Limit | Measured |
+|---|---|---|---|
+| Calendar: free slots for a date + sport | 1.1.2 / 1.2.1 | 3 s | ~40 ms |
+| Search: a player's bookings (~6,000 rows) | 1.2.2 | 4 s | ~0.5 s |
+| Reports covering 1 year (utilization / revenue / demographics) | 1.3.1 | 6 s | 0.1-0.9 s |
+| Report data for PDF/CSV export (1 year of payments; 5,000 results) | 1.3.2 | 5 s | ~0.9 s / ~0.2 s |
+
+```bash
+./mvnw test -Dgroups=performance          # the 50,000-booking check (also runs in CI)
+python3 scripts/load-test.py --users 250   # peak load (NFR 1.1.1) against a running backend
+```
+
+`load-test.py` simulates 250 players opening the booking calendar **at the same moment**. It reports median, p95 and maximum response times, and passes when every response is under 4 seconds.
+
 ## Design Mapping (SCD class diagram and ERD → code)
 
 How the Phase 1 class diagram and ERD (`docs/phases/Courtly_SCD_Phase1_Team13.pdf`) are implemented:

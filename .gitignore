@@ -22,3 +22,6 @@ src/backend/src/main/resources/secrets.yml
 
 # Old plaintext verification uploads (documents are now encrypted in the database)
 uploads/
+
+# Database backups (contain personal data)
+backups/

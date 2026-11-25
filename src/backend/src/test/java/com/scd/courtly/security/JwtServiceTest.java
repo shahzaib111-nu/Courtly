@@ -58,9 +58,28 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("short secrets are padded instead of crashing")
+    @DisplayName("a short secret is replaced by a random one, so tokens still work but cannot be forged")
     void shortSecret() {
         JwtService weak = create("short", 60_000);
         assertThat(weak.isTokenValid(weak.generateToken("p@x.com", "PLAYER", "1"))).isTrue();
+
+        JwtService attacker = create("short", 60_000);                 // knows the same weak secret
+        assertThat(weak.isTokenValid(attacker.generateToken("p@x.com", "ADMIN", "ADMIN"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("the old public default secret is never trusted")
+    void publicDefaultSecretRejected() {
+        JwtService server = create(JwtService.PUBLIC_DEFAULT_SECRET, 60_000);
+        JwtService attacker = create(JwtService.PUBLIC_DEFAULT_SECRET, 60_000);
+        String forged = attacker.generateToken("admin.playfair@gmail.com", "ADMIN", "ADMIN");
+        assertThat(server.isTokenValid(forged)).isFalse();
+    }
+
+    @Test
+    @DisplayName("a missing secret still lets the app run")
+    void missingSecret() {
+        JwtService s = create("", 60_000);
+        assertThat(s.isTokenValid(s.generateToken("p@x.com", "PLAYER", "1"))).isTrue();
     }
 }

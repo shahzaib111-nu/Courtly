@@ -1480,9 +1480,57 @@ function logReport(reportType, filters, exportFormat) {
             }
         };
 
+        // ── Database backups (NFR 3.3) ───────────────────────────────────────
+        const backupController = {
+            async load() {
+                const box = document.getElementById('backupBody');
+                if (!box) return;
+                const when = d => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                const size = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+                try {
+                    const res = await fetch(`${ADMIN_API}/backups`);
+                    if (!res.ok) throw new Error();
+                    const s = await res.json();
+                    box.innerHTML = `
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-6 pb-3 text-xs">
+                            <div><p class="text-slate-500 uppercase tracking-wider">Last backup</p><p class="text-slate-200 text-sm mt-1">${when(s.lastBackupAt)}</p></div>
+                            <div><p class="text-slate-500 uppercase tracking-wider">Next due</p><p class="text-slate-200 text-sm mt-1">${s.enabled ? when(s.nextDueAt) : 'Automatic backups off'}</p></div>
+                            <div><p class="text-slate-500 uppercase tracking-wider">Kept</p><p class="text-slate-200 text-sm mt-1">Newest ${s.keep} · ${s.encrypted ? '🔒 encrypted' : 'not encrypted'}</p></div>
+                            <div><p class="text-slate-500 uppercase tracking-wider">Folder</p><p class="text-slate-400 mt-1 break-all">${_esc(s.directory)}</p></div>
+                        </div>
+                        ${s.backups.length ? `<div class="overflow-x-auto px-6 pb-5"><table class="w-full text-xs">
+                            <thead><tr class="text-left text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                <th class="py-2 pr-4">File</th><th class="py-2 pr-4">Created</th><th class="py-2">Size</th></tr></thead>
+                            <tbody class="divide-y divide-slate-700/50">
+                            ${s.backups.map(b => `<tr><td class="py-2 pr-4 font-mono text-slate-300">${_esc(b.fileName)}</td>
+                                <td class="py-2 pr-4 text-slate-400">${when(b.createdAt)}</td><td class="py-2 text-slate-400">${size(b.sizeBytes)}</td></tr>`).join('')}
+                            </tbody></table></div>` : '<p class="text-slate-400 text-sm px-6 pb-5">No backups yet. The first one is made within an hour, or click “Back up now”.</p>'}`;
+                } catch {
+                    box.innerHTML = '<p class="text-rose-400 text-sm p-6">Failed to load backup status.</p>';
+                }
+            },
+
+            async runNow() {
+                const btn = document.getElementById('backupNowBtn');
+                btn.disabled = true; btn.textContent = 'Backing up…';
+                try {
+                    const res = await fetch(`${ADMIN_API}/backups`, { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(apiErrorText(data, 'Backup failed.'));
+                    showPopup(`Backup created: ${data.fileName}`);
+                    this.load();
+                } catch (e) {
+                    showPopup(e.message || 'Backup failed.');
+                } finally {
+                    btn.disabled = false; btn.textContent = 'Back up now';
+                }
+            }
+        };
+
         disputesController.load();
         deliveryLogController.load();
         reportHistoryController.load();
+        backupController.load();
 
 
 

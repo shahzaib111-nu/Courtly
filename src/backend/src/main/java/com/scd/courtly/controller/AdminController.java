@@ -37,6 +37,9 @@ public class AdminController {
     private com.scd.courtly.service.ReportHistoryService reportHistory;
 
     @Autowired
+    private com.scd.courtly.service.BackupService backupService;
+
+    @Autowired
     private com.scd.courtly.security.AccessGuard guard;
 
     @Autowired
@@ -242,6 +245,18 @@ public class AdminController {
                 request.filters(), request.exportFormat()));
     }
 
+    /** Backup settings and existing backups (NFR 3.3). */
+    @GetMapping("/backups")
+    public ResponseEntity<com.scd.courtly.service.BackupService.BackupStatus> backups() {
+        return ResponseEntity.ok(backupService.status());
+    }
+
+    /** Makes a database backup now. */
+    @PostMapping("/backups")
+    public ResponseEntity<com.scd.courtly.service.BackupService.BackupFile> backupNow() {
+        return ResponseEntity.ok(backupService.runBackup());
+    }
+
     /** The most recent generated/exported reports. */
     @GetMapping("/reports/history")
     public ResponseEntity<List<SystemReport>> getReportHistory(@RequestParam(defaultValue = "50") int limit) {
@@ -344,10 +359,14 @@ public class AdminController {
                 .findByStatusInAndConfirmedAtBetweenOrderByConfirmedAtDesc(
                         List.of("CONFIRMED", "COMPLETED"), fromDt, toDt);
 
+        // One query for all payers instead of one per booking (NFR 1.3.2: export within 5 s)
+        Map<String, String> payerNames = new HashMap<>();
+        playerRepository.findAllById(bookings.stream().map(Booking::getPlayerID).collect(Collectors.toSet()))
+                .forEach(p -> payerNames.put(p.getUserID(),
+                        p.getName() != null && !p.getName().isBlank() ? p.getName() : p.getEmail()));
+
         List<Map<String, Object>> result = bookings.stream().map(b -> {
-            String payerName = playerRepository.findById(b.getPlayerID())
-                    .map(p -> p.getName() != null && !p.getName().isBlank() ? p.getName() : p.getEmail())
-                    .orElse("Unknown");
+            String payerName = payerNames.getOrDefault(b.getPlayerID(), "Unknown");
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("payerName",       payerName);
             row.put("paymentDateTime", b.getConfirmedAt() != null ? b.getConfirmedAt().toString() : "");

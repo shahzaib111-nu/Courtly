@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   test:
-    name: JUnit (unit + integration)
+    name: JUnit (unit + integration + performance)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -45,9 +45,13 @@ jobs:
       - name: Unit tests (fast, no Spring)
         run: ./mvnw -B test -Dgroups=unit
 
-      # Runs every test NOT tagged "unit", so a new test without a tag is never skipped
+      # Runs every test NOT tagged "unit" or "performance", so a new test without a tag is never skipped
       - name: Integration tests (full API through HTTP)
-        run: ./mvnw -B test -DexcludedGroups=unit
+        run: ./mvnw -B test -DexcludedGroups=unit,performance
+
+      # NFR 1.1-1.3: response times on 50,000 bookings must stay within the spec's limits
+      - name: Performance tests (50,000 bookings)
+        run: ./mvnw -B test -Dgroups=performance
 
       - name: Upload test reports
         if: always()              # keep reports even when tests fail
