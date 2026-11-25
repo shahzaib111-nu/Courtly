@@ -61,7 +61,7 @@ Backend API runs on: `http://localhost:8081` (`server.port` in `application.prop
 
 ### Login example
 ```bash
-curl -X POST "http://localhost:8081/api/auth/login?email=admin.playfair@gmail.com&pass=Admin123&role=ADMIN"
+curl -X POST "http://localhost:8081/api/auth/login?email=admin.playfair@gmail.com&pass=<app.admin.password>&role=ADMIN"
 ```
 
 ### Authenticated request example
@@ -170,6 +170,17 @@ Public API groups include authentication, court browsing, availability, and publ
 - Missing or invalid JWT: `401 Unauthorized`
 - Valid JWT with insufficient role: `403 Forbidden`
 
+### Ownership rules
+
+The caller's identity always comes from the verified JWT, never from IDs in the request (`AccessGuard`). Acting on someone else's data returns `403`.
+
+- Players can only book, rate, submit results, upload documents and read notifications, bookings, profile and account status **for themselves**.
+- A booking can be cancelled by its player, by the manager of that court, or by an admin. Manual confirmation is limited to the court's manager or an admin.
+- Managers only see and change **their own** courts, bookings and maintenance. A new court always belongs to the manager who creates it.
+- Managers awaiting approval (`PENDING_APPROVAL` / `REJECTED`) have no manager rights until an admin approves them.
+- Uploaded ID documents can only be viewed by admins.
+- Only the frontend origins in `app.cors.allowed-origins` may call the API from a browser (defaults: Live Server on ports 5500/5501).
+
 ## Exception Handling
 
 - All API errors use a consistent JSON response: `timestamp`, `status`, `error`, `message`, and `path`.
@@ -189,7 +200,7 @@ All accounts use password: **`Demo1234`**
 ### Admin
 | Email | Password |
 |---|---|
-| admin.playfair@gmail.com | Admin123 |
+| admin.playfair@gmail.com | set `app.admin.password` in `secrets.yml` (admin login is disabled until you do) |
 
 ### Arena Managers
 | Name | Email | Courts |

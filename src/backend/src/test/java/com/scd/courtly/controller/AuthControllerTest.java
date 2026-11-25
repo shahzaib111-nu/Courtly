@@ -191,10 +191,21 @@ class AuthControllerTest extends IntegrationTest {
         }
 
         @Test
-        @DisplayName("GET /profile for an unknown email → 404")
-        void profileUnknown() throws Exception {
+        @DisplayName("GET /profile of another user → 403 (doesn't reveal whether the email exists)")
+        void profileOfOtherUser() throws Exception {
+            mockMvc.perform(get("/api/auth/profile").param("email", TestData.PLAYER_2_EMAIL)
+                    .header("Authorization", playerToken()))
+                .andExpect(status().isForbidden());
             mockMvc.perform(get("/api/auth/profile").param("email", "ghost@test.local")
                     .header("Authorization", playerToken()))
+                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("GET /profile for an unknown email as admin → 404")
+        void profileUnknown() throws Exception {
+            mockMvc.perform(get("/api/auth/profile").param("email", "ghost@test.local")
+                    .header("Authorization", adminToken()))
                 .andExpect(status().isNotFound());
         }
 

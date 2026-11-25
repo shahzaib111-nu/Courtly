@@ -1,6 +1,7 @@
 package com.scd.courtly.controller;
 
 import com.scd.courtly.model.FacilityRating;
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.FacilityRatingService;
 import com.scd.courtly.dto.request.SubmitRatingRequest;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,13 @@ import java.util.Map;
 public class FacilityRatingController {
 
     private final FacilityRatingService ratingService;
+    private final AccessGuard guard;
 
     /** POST /api/ratings/submit */
     @PostMapping("/submit")
     @PreAuthorize("hasAnyRole('USER','ADMIN','MANAGER')")
     public ResponseEntity<?> submit(@Valid @RequestBody SubmitRatingRequest request) {
+        guard.requireSelfOrAdmin(request.playerID());
         return ResponseEntity.ok(ratingService.submitRating(
             request.bookingID(), request.playerID(), request.ratingScore(), request.feedbackText()));
     }

@@ -4,6 +4,7 @@ import com.scd.courtly.dto.response.LoginResponse;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.security.AdminAccount;
 import com.scd.courtly.security.JwtService;
 import com.scd.courtly.security.oauth2.OAuth2UserProfile;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -31,6 +33,7 @@ class OAuth2AccountServiceTest {
     @Mock UserRepository userRepository;
     @Mock NotificationService notificationService;
     @Mock JwtService jwtService;
+    @Spy AdminAccount adminAccount = new AdminAccount("admin.playfair@gmail.com", "Admin123");
     @InjectMocks OAuth2AccountService service;
 
     @BeforeEach

@@ -3,6 +3,7 @@ package com.scd.courtly.controller;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.repository.VerificationDocRepository;
 import com.scd.courtly.support.IntegrationTest;
+import com.scd.courtly.support.TestData;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,11 +76,12 @@ class VerificationDocControllerTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("POST /upload for an unknown player → 400")
-    void unknownPlayer() throws Exception {
+    @DisplayName("POST /upload to someone else's account → 403")
+    void otherAccount() throws Exception {
+        upload("id.png", new byte[]{1}, TestData.PLAYER_EMAIL)
+            .andExpect(status().isForbidden());
         upload("id.png", new byte[]{1}, "ghost@test.local")
-            .andExpect(status().isBadRequest())
-            .andExpect(content().string(containsString("No player account")));
+            .andExpect(status().isForbidden());
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.scd.courtly.model.Player;
 import com.scd.courtly.model.VerificationDoc;
 import com.scd.courtly.repository.PlayerRepository;
 import com.scd.courtly.repository.VerificationDocRepository;
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
@@ -41,11 +42,15 @@ public class VerificationDocController {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private AccessGuard guard;
+
     @PostMapping("/upload")
     public ResponseEntity<?> uploadDocument(
             @RequestParam MultipartFile file,
             @RequestParam String docType,
             @RequestParam String playerEmail) {
+        guard.requireSelfEmailOrAdmin(playerEmail);   // upload only to your own account
 
         if (file.getSize() > MAX_FILE_SIZE) {
             return ResponseEntity.badRequest().body("File too large. Maximum allowed size is 5MB.");
@@ -100,6 +105,7 @@ public class VerificationDocController {
 
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@RequestParam String playerEmail) {
+        guard.requireSelfEmailOrAdmin(playerEmail);
         Optional<Player> playerOpt = playerRepository.findByEmail(playerEmail);
         if (playerOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Player not found.");
@@ -108,7 +114,8 @@ public class VerificationDocController {
         return ResponseEntity.ok(docs);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    /** Uploaded ID documents are visible to admins only (NFR 2.2.1). */
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/view/{docID}")
     public ResponseEntity<Resource> viewDocument(@PathVariable String docID) {
         Optional<VerificationDoc> docOpt = verificationDocRepository.findById(docID);

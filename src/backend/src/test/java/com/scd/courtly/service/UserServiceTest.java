@@ -4,6 +4,7 @@ import com.scd.courtly.dto.response.LoginResponse;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.security.AdminAccount;
 import com.scd.courtly.security.JwtService;
 import com.scd.courtly.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,7 @@ class UserServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock JwtService jwtService;
+    @Spy AdminAccount adminAccount = new AdminAccount("admin.playfair@gmail.com", "Admin123");
     @Spy BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4); // low cost keeps tests fast
     @InjectMocks UserService service;
 

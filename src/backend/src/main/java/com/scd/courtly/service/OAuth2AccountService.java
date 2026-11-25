@@ -4,6 +4,7 @@ import com.scd.courtly.dto.response.LoginResponse;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.security.AdminAccount;
 import com.scd.courtly.security.JwtService;
 import com.scd.courtly.security.oauth2.OAuth2UserProfile;
 import lombok.RequiredArgsConstructor;
@@ -24,18 +25,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OAuth2AccountService {
 
-    private static final String ADMIN_EMAIL = "admin.playfair@gmail.com";
-
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final JwtService jwtService;
+    private final AdminAccount adminAccount;
 
     @Transactional
     public LoginResponse signIn(OAuth2UserProfile profile, String requestedRole) {
         String role = "MANAGER".equalsIgnoreCase(requestedRole) ? "MANAGER" : "PLAYER";
 
         // The admin account is not stored in the database and keeps password-only login.
-        if (ADMIN_EMAIL.equalsIgnoreCase(profile.email())) {
+        if (adminAccount.isAdminEmail(profile.email())) {
             return LoginResponse.failure("ADMIN_OAUTH_NOT_SUPPORTED");
         }
 

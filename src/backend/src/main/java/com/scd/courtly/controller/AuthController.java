@@ -11,6 +11,7 @@ import com.scd.courtly.model.User;
 import com.scd.courtly.repository.PlayerRepository;
 import com.scd.courtly.service.EmailService;
 import com.scd.courtly.service.NotificationService;
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +44,9 @@ public class AuthController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private AccessGuard guard;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
@@ -106,6 +110,7 @@ public class AuthController {
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(@RequestParam String email) {
+        guard.requireSelfEmailOrAdmin(email);
         Optional<Player> playerOpt = playerRepository.findByEmail(email);
         if (playerOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -123,6 +128,7 @@ public class AuthController {
     @PreAuthorize("hasRole('USER')")
     @GetMapping("/account-status")
     public ResponseEntity<?> getAccountStatus(@RequestParam String playerID) {
+        guard.requireSelfOrAdmin(playerID);
         return playerRepository.findById(playerID)
                 .map(p -> ResponseEntity.ok(Map.of("accountStatus", p.getAccountStatus() != null ? p.getAccountStatus() : "Active")))
                 .orElse(ResponseEntity.notFound().build());
@@ -131,6 +137,7 @@ public class AuthController {
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/request-deletion")
     public ResponseEntity<?> requestDeletion(@RequestParam String playerEmail) {
+        guard.requireSelfEmailOrAdmin(playerEmail);
         Optional<Player> playerOpt = playerRepository.findByEmail(playerEmail);
         if (playerOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -149,24 +156,6 @@ public class AuthController {
         );
 
         return ResponseEntity.ok().build();
-    }
-
-    @PutMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        String email = request.email().trim();
-        String newPass = request.newPassword().trim();
-
-        if (email.isBlank() || newPass.isBlank())
-            return ResponseEntity.badRequest().body("Email and new password are required.");
-
-        Optional<Player> playerOpt = playerRepository.findByEmail(email);
-        if (playerOpt.isEmpty())
-            return ResponseEntity.status(404).body("No account found with that email address.");
-
-        Player p = playerOpt.get();
-        p.setPasswordHash(passwordEncoder.encode(newPass));
-        playerRepository.save(p);
-        return ResponseEntity.ok(Map.of("message", "Password reset successfully. You can now sign in."));
     }
 
     @PostMapping("/forgot-password")

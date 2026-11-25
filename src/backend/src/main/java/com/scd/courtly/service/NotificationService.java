@@ -3,6 +3,7 @@ package com.scd.courtly.service;
 import com.scd.courtly.model.Notification;
 import com.scd.courtly.repository.NotificationRepository;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.security.AdminAccount;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository         userRepository;
     private final EmailService           emailService;
+    private final AdminAccount           adminAccount;
 
     public Notification create(String userId, String type, String title, String message) {
         Notification n = new Notification();
@@ -31,7 +33,7 @@ public class NotificationService {
 
         // Send email — admin has no DB row so handle separately
         if (ADMIN_USER_ID.equals(userId)) {
-            emailService.sendNotificationEmail("admin.playfair@gmail.com", type, title, message);
+            emailService.sendNotificationEmail(adminAccount.email(), type, title, message);
         } else {
             userRepository.findById(userId).ifPresent(user -> {
                 String email = user.getEmail();

@@ -1,6 +1,9 @@
 package com.scd.courtly.controller;
 
 import com.scd.courtly.model.Notification;
+import com.scd.courtly.exception.NotFoundException;
+import com.scd.courtly.repository.NotificationRepository;
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,20 +20,25 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationRepository notificationRepository;
+    private final AccessGuard guard;
 
     @GetMapping
     public ResponseEntity<List<Notification>> getNotifications(@RequestParam String userId) {
+        guard.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(notificationService.getForUser(userId));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<UnreadCountResponse> getUnreadCount(@RequestParam String userId) {
+        guard.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(new UnreadCountResponse(notificationService.getUnreadCount(userId)));
     }
 
     @PutMapping("/{id}/read")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> markRead(@PathVariable String id) {
+        requireOwner(id);
         notificationService.markRead(id);
         return ResponseEntity.ok().build();
     }
@@ -38,19 +46,28 @@ public class NotificationController {
     @PutMapping("/read-all")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> markAllRead(@RequestParam String userId) {
+        guard.requireSelfOrAdmin(userId);
         notificationService.markAllRead(userId);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable String id) {
+        requireOwner(id);
         notificationService.deleteNotification(id);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/all")
     public ResponseEntity<?> deleteAll(@RequestParam String userId) {
+        guard.requireSelfOrAdmin(userId);
         notificationService.deleteAllForUser(userId);
         return ResponseEntity.ok().build();
+    }
+
+    private void requireOwner(String notificationId) {
+        Notification n = notificationRepository.findById(notificationId)
+            .orElseThrow(() -> new NotFoundException("Notification not found"));
+        guard.requireSelfOrAdmin(n.getUserId());
     }
 }

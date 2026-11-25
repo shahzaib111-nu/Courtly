@@ -1,5 +1,6 @@
 package com.scd.courtly.controller;
 
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.FacilityManagerService;
 import com.scd.courtly.dto.request.MaintenanceRequest;
 import com.scd.courtly.dto.response.MaintenanceResponse;
@@ -21,24 +22,29 @@ import java.util.Map;
 public class FacilityManagerController {
 
     private final FacilityManagerService facilityManagerService;
+    private final AccessGuard guard;
 
     @GetMapping("/bookings/upcoming")
     public ResponseEntity<List<Map<String, Object>>> getUpcomingBookings(@RequestParam String managerID) {
+        guard.requireSelfOrAdmin(managerID);
         return ResponseEntity.ok(facilityManagerService.getUpcomingBookings(managerID));
     }
 
     @GetMapping("/bookings/completed")
     public ResponseEntity<List<Map<String, Object>>> getCompletedBookings(@RequestParam String managerID) {
+        guard.requireSelfOrAdmin(managerID);
         return ResponseEntity.ok(facilityManagerService.getCompletedBookings(managerID));
     }
 
     @GetMapping("/courts/maintenances")
     public ResponseEntity<List<Map<String, Object>>> getScheduledMaintenances(@RequestParam String managerID) {
+        guard.requireSelfOrAdmin(managerID);
         return ResponseEntity.ok(facilityManagerService.getScheduledMaintenances(managerID));
     }
 
     @DeleteMapping("/courts/{courtID}/schedule-maintenance")
     public ResponseEntity<?> cancelMaintenance(@PathVariable String courtID) {
+        guard.requireCourtManagerOrAdmin(courtID);   // 404 if the court does not exist
         if (!facilityManagerService.cancelMaintenance(courtID)) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(Map.of("message", "Maintenance cancelled."));
     }
@@ -47,6 +53,7 @@ public class FacilityManagerController {
     public ResponseEntity<?> scheduleMaintenance(
             @PathVariable String courtID,
             @Valid @RequestBody MaintenanceRequest request) {
+        guard.requireCourtManagerOrAdmin(courtID);   // 404 if the court does not exist
 
         String fromStr = request.maintenanceFrom();
         String toStr = request.maintenanceTo();

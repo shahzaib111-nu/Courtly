@@ -3,6 +3,7 @@ package com.scd.courtly.service;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.UserRepository;
 import com.scd.courtly.dto.response.LoginResponse;
+import com.scd.courtly.security.AdminAccount;
 import com.scd.courtly.security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,8 +14,6 @@ import java.util.UUID;
 @Service
 public class UserService {
 
-    private static final String ADMIN_EMAIL = "admin.playfair@gmail.com";
-    private static final String ADMIN_PASSWORD = "Admin123";
 
     @Autowired
     private UserRepository userRepository;
@@ -24,6 +23,9 @@ public class UserService {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private AdminAccount adminAccount;
 
     public User register(User userData) {
         Optional<User> existing = userRepository.findByEmail(userData.getEmail());
@@ -38,11 +40,11 @@ public class UserService {
     }
 
     public LoginResponse login(String email, String password, String requestedRole) {
-        if (ADMIN_EMAIL.equals(email) && ADMIN_PASSWORD.equals(password)) {
+        if (adminAccount.matches(email, password)) {
             if ("PLAYER".equalsIgnoreCase(requestedRole)) {
                 return LoginResponse.failure("ROLE_MISMATCH:ADMIN");
             }
-            String token = jwtService.generateToken(email, "ADMIN", "ADMIN");
+            String token = jwtService.generateToken(adminAccount.email(), "ADMIN", AdminAccount.USER_ID);
             return new LoginResponse(true, "ADMIN", null, null, "Admin", null, token, jwtService.getExpirationMs());
         }
         Optional<User> user = userRepository.findByEmail(email);

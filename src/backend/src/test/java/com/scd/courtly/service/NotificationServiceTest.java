@@ -3,6 +3,7 @@ package com.scd.courtly.service;
 import com.scd.courtly.model.Notification;
 import com.scd.courtly.repository.NotificationRepository;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.security.AdminAccount;
 import com.scd.courtly.support.Fixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -33,6 +35,7 @@ class NotificationServiceTest {
     @Mock NotificationRepository notificationRepository;
     @Mock UserRepository userRepository;
     @Mock EmailService emailService;
+    @Spy AdminAccount adminAccount = new AdminAccount("admin.playfair@gmail.com", "Admin123");
     @InjectMocks NotificationService service;
 
     @BeforeEach

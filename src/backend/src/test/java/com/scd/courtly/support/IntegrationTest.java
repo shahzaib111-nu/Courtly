@@ -70,6 +70,7 @@ public abstract class IntegrationTest {
     protected String playerToken()   { return bearer(TestData.PLAYER_EMAIL, "PLAYER", TestData.PLAYER_ID); }
     protected String player2Token()  { return bearer(TestData.PLAYER_2_EMAIL, "PLAYER", TestData.PLAYER_2_ID); }
     protected String managerToken()  { return bearer(TestData.MANAGER_1_EMAIL, "MANAGER", TestData.MANAGER_1_ID); }
+    protected String manager2Token() { return bearer(TestData.MANAGER_2_EMAIL, "MANAGER", TestData.MANAGER_2_ID); }
     protected String adminToken()    { return bearer(TestData.ADMIN_EMAIL, "ADMIN", "ADMIN"); }
 
     protected String tokenFor(Player p) {

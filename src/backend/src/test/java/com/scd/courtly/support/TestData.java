@@ -21,6 +21,7 @@ public final class TestData {
     public static final String MANAGER_1_ID    = "MGR001";
     public static final String MANAGER_1_EMAIL = "imran.tariq@demo.com";
     public static final String MANAGER_2_ID    = "MGR002";
+    public static final String MANAGER_2_EMAIL = "faisal.mehmood@demo.com";
 
     // Players
     public static final String PLAYER_ID       = "PLR001";   // Hamza Raza, no discount

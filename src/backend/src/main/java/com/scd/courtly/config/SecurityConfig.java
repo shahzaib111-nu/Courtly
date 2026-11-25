@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/register", "/api/auth/login",
                     "/api/auth/forgot-password", "/api/auth/verify-otp",
-                    "/api/auth/reset-password", "/api/auth/reset-password-otp",
+                    "/api/auth/reset-password-otp",
                     "/api/auth/oauth2/**", "/oauth2/**", "/login/oauth2/**",
                     "/h2-console/**", "/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET,

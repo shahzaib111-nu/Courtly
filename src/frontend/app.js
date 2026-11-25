@@ -1537,7 +1537,9 @@ const facilityController = {
         try {
             const res = await fetch(COURT_API);
             if (!res.ok) throw new Error();
-            this.allCourts = await res.json();
+            // Managers see and edit only the courts they own (the server enforces this too).
+            const myID = localStorage.getItem('playerID');
+            this.allCourts = (await res.json()).filter(c => c.managerId === myID);
         } catch {
             grid.innerHTML = `
                 <div class="col-span-full text-center py-10">

@@ -1,6 +1,7 @@
 package com.scd.courtly.controller;
 
 import com.scd.courtly.model.MatchResult;
+import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.MatchResultService;
 import com.scd.courtly.dto.request.SubmitMatchRequest;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,13 @@ import java.util.Map;
 public class MatchResultController {
 
     private final MatchResultService matchResultService;
+    private final AccessGuard guard;
 
     /** POST /api/matches/submit */
     @PostMapping("/submit")
     @PreAuthorize("hasAnyRole('USER','ADMIN','MANAGER')")
     public ResponseEntity<?> submit(@Valid @RequestBody SubmitMatchRequest request) {
+        guard.requireSelfOrAdmin(request.playerID());
         String bookingID = request.bookingID();
         String playerID = request.playerID();
         String opponentName = request.opponentName();
