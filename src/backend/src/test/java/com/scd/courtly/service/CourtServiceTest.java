@@ -1,6 +1,8 @@
 package com.scd.courtly.service;
 
 import com.scd.courtly.model.Court;
+import com.scd.courtly.exception.ConflictException;
+import com.scd.courtly.repository.BookingRepository;
 import com.scd.courtly.repository.CourtRepository;
 import com.scd.courtly.support.Fixtures;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -27,6 +31,7 @@ import static org.mockito.Mockito.*;
 class CourtServiceTest {
 
     @Mock CourtRepository courtRepository;
+    @Mock BookingRepository bookingRepository;
     @InjectMocks CourtService service;
 
     @Nested
@@ -129,11 +134,25 @@ class CourtServiceTest {
         }
 
         @Test
-        @DisplayName("delete removes an existing court")
+        @DisplayName("delete removes an existing court with no upcoming bookings")
         void deleteExisting() {
             when(courtRepository.existsById("C")).thenReturn(true);
             assertThat(service.deleteCourt("C")).isTrue();
             verify(courtRepository).deleteById("C");
+        }
+
+        @Test
+        @DisplayName("FR-34: a court with active future bookings cannot be removed")
+        void deleteBlockedByFutureBookings() {
+            when(courtRepository.existsById("C")).thenReturn(true);
+            when(bookingRepository.countByCourtIDAndStatusInAndBookingDateGreaterThanEqual(
+                eq("C"), eq(List.of("PENDING", "CONFIRMED")), eq(java.time.LocalDate.now().toString())))
+                .thenReturn(2L);
+
+            assertThatThrownBy(() -> service.deleteCourt("C"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("2 upcoming bookings");
+            verify(courtRepository, never()).deleteById(any());
         }
     }
 }

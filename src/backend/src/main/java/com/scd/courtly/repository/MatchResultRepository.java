@@ -12,7 +12,11 @@ public interface MatchResultRepository extends JpaRepository<MatchResult, String
     boolean existsByBookingID(String bookingID);
     List<MatchResult> findByPlayerIDOrderBySubmittedAtDesc(String playerID);
 
+    List<MatchResult> findByStatusOrderBySubmittedAtAsc(String status);
+
+    // Disputed results are left out of rankings until an admin resolves them (FR-38, FR-39)
     @Query("SELECT m FROM MatchResult m WHERE " +
+           "(m.status IS NULL OR m.status <> 'DISPUTED') AND " +
            "(:sportType IS NULL OR m.sportType = :sportType) AND " +
            "(:dateFrom  IS NULL OR m.bookingDate >= :dateFrom) AND " +
            "(:dateTo    IS NULL OR m.bookingDate <= :dateTo) " +

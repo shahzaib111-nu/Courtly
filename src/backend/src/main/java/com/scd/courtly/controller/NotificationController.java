@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import com.scd.courtly.dto.response.UnreadCountResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,18 @@ public class NotificationController {
     public ResponseEntity<List<Notification>> getNotifications(@RequestParam String userId) {
         guard.requireSelfOrAdmin(userId);
         return ResponseEntity.ok(notificationService.getForUser(userId));
+    }
+
+    /** FR-43: e-mail delivery log with SENT / QUEUED / FAILED counts (admin only). */
+    @GetMapping("/delivery-log")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> deliveryLog(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "100") int limit) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("counts", notificationService.getDeliveryCounts());
+        body.put("entries", notificationService.getDeliveryLog(status, limit));
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/unread-count")

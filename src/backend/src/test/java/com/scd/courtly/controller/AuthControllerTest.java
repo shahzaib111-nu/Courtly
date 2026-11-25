@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -148,7 +149,7 @@ class AuthControllerTest extends IntegrationTest {
         void unknownEmail() throws Exception {
             login("nobody@test.local", "Whatever1", "PLAYER")
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("No account found with that email address"));
+                .andExpect(jsonPath("$.message").value("No account found with that email address or username"));
         }
 
         @Test
@@ -369,6 +370,251 @@ class AuthControllerTest extends IntegrationTest {
         void tooShort() throws Exception {
             Player p = newPlayer();
             change(tokenFor(p), p.getEmail(), TestData.DEMO_PASSWORD, "short").andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("NFR 2.1.1: a new password without digits or without letters → 400")
+        void notAlphanumeric() throws Exception {
+            Player p = newPlayer();
+            change(tokenFor(p), p.getEmail(), TestData.DEMO_PASSWORD, "onlyletters").andExpect(status().isBadRequest());
+            change(tokenFor(p), p.getEmail(), TestData.DEMO_PASSWORD, "12345678").andExpect(status().isBadRequest());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("Password policy (NFR 2.1.1)")
+    class PasswordPolicy {
+
+        @Test
+        @DisplayName("registration requires letters and numbers")
+        void registrationRequiresAlphanumeric() throws Exception {
+            for (String weak : new String[]{"password", "12345678", "Ab1"}) {
+                Map<String, Object> body = registration("weak@test.local", "PLAYER");
+                body.put("password", weak);
+                mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.password", containsString("letters and numbers")));
+            }
+        }
+
+        @Test
+        @DisplayName("an OTP reset also enforces the policy")
+        void otpResetEnforcesPolicy() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("email", TestData.PLAYER_EMAIL);
+            body.put("otp", "123456");
+            body.put("newPassword", "abcdefgh");
+            mockMvc.perform(put("/api/auth/reset-password-otp").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.newPassword").exists());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("Account lockout (NFR 2.1.2)")
+    class Lockout {
+
+        @Test
+        @DisplayName("5 wrong passwords → 423 Locked; even the right password is refused for 10 minutes")
+        void locksAfterFiveFailures() throws Exception {
+            Player p = newPlayer();
+            for (int i = 0; i < 4; i++) {
+                login(p.getEmail(), "WrongPass1", "PLAYER").andExpect(status().isUnauthorized());
+            }
+            login(p.getEmail(), "WrongPass1", "PLAYER")
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.message", containsString("locked for 10 more minutes")));
+
+            login(p.getEmail(), TestData.DEMO_PASSWORD, "PLAYER").andExpect(status().isLocked());
+            assertThat(playerRepository.findById(p.getUserID()).orElseThrow().getLockedUntil())
+                .isAfter(LocalDateTime.now().plusMinutes(9));
+        }
+
+        @Test
+        @DisplayName("after the lock expires the right password works again")
+        void unlocksAfterExpiry() throws Exception {
+            Player p = newPlayer();
+            p.setLockedUntil(LocalDateTime.now().minusMinutes(1));
+            p.setFailedLoginAttempts(0);
+            playerRepository.saveAndFlush(p);
+
+            login(p.getEmail(), TestData.DEMO_PASSWORD, "PLAYER").andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("resetting the password with an e-mailed OTP lifts the lock")
+        void otpResetUnlocks() throws Exception {
+            Player p = newPlayer();
+            p.setLockedUntil(LocalDateTime.now().plusMinutes(10));
+            p.setOtpCode("654321");
+            p.setOtpExpiry(new java.util.Date(System.currentTimeMillis() + 60_000));
+            playerRepository.saveAndFlush(p);
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("email", p.getEmail());
+            body.put("otp", "654321");
+            body.put("newPassword", "Unlocked123");
+            mockMvc.perform(put("/api/auth/reset-password-otp").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isOk());
+
+            login(p.getEmail(), "Unlocked123", "PLAYER").andExpect(status().isOk());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("Username and player category (FR-1, FR-3, FR-5, FR-9)")
+    class UsernameAndCategory {
+
+        @Test
+        @DisplayName("register with a username and category, then sign in with the username")
+        void registerAndLoginWithUsername() throws Exception {
+            Map<String, Object> body = registration("uname@test.local", "PLAYER");
+            body.put("username", "Court_King");
+            body.put("category", "student");
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isOk());
+
+            Player saved = playerRepository.findByEmail("uname@test.local").orElseThrow();
+            assertThat(saved.getUsername()).isEqualTo("court_king");
+            assertThat(saved.getCategory()).isEqualTo("STUDENT");
+
+            login("COURT_KING", "Secret123", "PLAYER")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("uname@test.local"))
+                .andExpect(jsonPath("$.playerID").value(saved.getUserID()));
+        }
+
+        @Test
+        @DisplayName("a taken username → 409")
+        void duplicateUsername() throws Exception {
+            Player existing = newPlayer();
+            existing.setUsername("taken_name");
+            playerRepository.saveAndFlush(existing);
+
+            Map<String, Object> body = registration("other@test.local", "PLAYER");
+            body.put("username", "Taken_Name");
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("username is already taken")));
+        }
+
+        @Test
+        @DisplayName("invalid username or category → 400")
+        void invalidValues() throws Exception {
+            Map<String, Object> body = registration("bad@test.local", "PLAYER");
+            body.put("username", "has@sign");
+            body.put("category", "VIP");
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.username").exists())
+                .andExpect(jsonPath("$.fieldErrors.category").exists());
+        }
+
+        @Test
+        @DisplayName("the Group category needs the group size")
+        void groupNeedsSize() throws Exception {
+            Map<String, Object> body = registration("group@test.local", "PLAYER");
+            body.put("category", "GROUP");
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("number of people")));
+
+            body.put("groupSize", 6);
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isOk());
+            assertThat(playerRepository.findByEmail("group@test.local").orElseThrow().getGroupMemberCount())
+                .isEqualTo(6);
+        }
+
+        @Test
+        @DisplayName("no category given → Regular")
+        void defaultsToRegular() throws Exception {
+            mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                    .content(json(registration("regular@test.local", "PLAYER"))))
+                .andExpect(status().isOk());
+            assertThat(playerRepository.findByEmail("regular@test.local").orElseThrow().getCategory())
+                .isEqualTo("REGULAR");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("PUT /profile (FR-10)")
+    class UpdateProfile {
+
+        private Map<String, Object> changes() {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("name", "Renamed Player");
+            body.put("username", "renamed.player");
+            body.put("phone", "+92 321 1234567");
+            body.put("dateOfBirth", "1999-09-09");
+            body.put("category", "GROUP");
+            body.put("groupSize", 4);
+            return body;
+        }
+
+        @Test
+        @DisplayName("the player updates their own details")
+        void updatesOwnProfile() throws Exception {
+            Player p = newPlayer();
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(changes())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed Player"))
+                .andExpect(jsonPath("$.username").value("renamed.player"))
+                .andExpect(jsonPath("$.category").value("GROUP"))
+                .andExpect(jsonPath("$.groupSize").value(4))
+                .andExpect(jsonPath("$.email").value(p.getEmail()));   // e-mail cannot change
+
+            Player saved = playerRepository.findById(p.getUserID()).orElseThrow();
+            assertThat(saved.getPhone()).isEqualTo("+92 321 1234567");
+            assertThat(saved.getDateOfBirth()).isEqualTo("1999-09-09");
+        }
+
+        @Test
+        @DisplayName("always edits the caller's own account, whatever the body says")
+        void cannotEditOthers() throws Exception {
+            Player p = newPlayer();
+            Map<String, Object> body = changes();
+            body.put("email", TestData.PLAYER_EMAIL);    // ignored: not an editable field
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isOk());
+            assertThat(playerRepository.findById(TestData.PLAYER_ID).orElseThrow().getName()).isEqualTo("Hamza Raza");
+        }
+
+        @Test
+        @DisplayName("someone else's username → 409; keeping your own → 200")
+        void usernameUniqueness() throws Exception {
+            Player other = newPlayer();
+            other.setUsername("renamed.player");
+            playerRepository.saveAndFlush(other);
+            Player p = newPlayer();
+
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(changes())))
+                .andExpect(status().isConflict());
+
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(other))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(changes())))
+                .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("missing required fields → 400; anonymous → 401")
+        void validationAndAuth() throws Exception {
+            Map<String, Object> body = changes();
+            body.remove("name");
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", playerToken())
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists());
+
+            mockMvc.perform(put("/api/auth/profile").contentType(MediaType.APPLICATION_JSON).content(json(changes())))
+                .andExpect(status().isUnauthorized());
         }
     }
 }

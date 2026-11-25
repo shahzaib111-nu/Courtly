@@ -22,6 +22,15 @@ public class BookingService {
 
     private static final int MAX_ACTIVE_BOOKINGS = 2;
 
+    /** NFR 3.2 / FR-21: an unpaid (PENDING) booking holds its slot for this long. */
+    public static final int PAYMENT_WINDOW_MINUTES = 10;
+
+    /** When the player must have paid by; afterwards the slot is released. */
+    public static java.time.LocalDateTime paymentDeadline(Booking b) {
+        java.time.LocalDateTime created = b.getCreatedAt() != null ? b.getCreatedAt() : java.time.LocalDateTime.now();
+        return created.plusMinutes(PAYMENT_WINDOW_MINUTES);
+    }
+
     private final BookingRepository   bookingRepository;
     private final CourtRepository     courtRepository;
     private final CourtService        courtService;

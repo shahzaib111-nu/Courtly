@@ -1,5 +1,6 @@
 package com.scd.courtly.controller;
 
+import com.scd.courtly.model.Player;
 import com.scd.courtly.support.IntegrationTest;
 import com.scd.courtly.support.TestData;
 import org.junit.jupiter.api.DisplayName;
@@ -141,6 +142,31 @@ class CourtControllerTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deleted").value(true));
             mockMvc.perform(get("/api/courts/{id}", TestData.TENNIS_COURT_2)).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("FR-34: DELETE /{id} with an upcoming booking → 409 with a warning; the court stays")
+        void removeWithFutureBookings() throws Exception {
+            Player p = newPlayer();
+            saveBooking(p.getUserID(), TestData.TENNIS_COURT_2, TestData.futureWeekday(3).toString(),
+                "10:00-11:00", "CONFIRMED");
+
+            mockMvc.perform(delete("/api/courts/{id}", TestData.TENNIS_COURT_2).header("Authorization", adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("1 upcoming booking")));
+            mockMvc.perform(get("/api/courts/{id}", TestData.TENNIS_COURT_2)).andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("FR-34: past and cancelled bookings do not block removal")
+        void pastBookingsDoNotBlock() throws Exception {
+            Player p = newPlayer();
+            saveBooking(p.getUserID(), TestData.TENNIS_COURT_2, "2026-01-05", "10:00-11:00", "CONFIRMED");
+            saveBooking(p.getUserID(), TestData.TENNIS_COURT_2, TestData.futureWeekday(3).toString(),
+                "11:00-12:00", "CANCELLED");
+
+            mockMvc.perform(delete("/api/courts/{id}", TestData.TENNIS_COURT_2).header("Authorization", adminToken()))
+                .andExpect(status().isOk());
         }
 
         @Test

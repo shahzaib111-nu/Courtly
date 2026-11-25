@@ -10,7 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -18,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class NotificationControllerTest extends IntegrationTest {
 
     @Autowired NotificationRepository notificationRepository;
+    @Autowired com.scd.courtly.service.NotificationService notificationService;
 
     private Player player;
     private String token;
@@ -91,4 +95,21 @@ class NotificationControllerTest extends IntegrationTest {
             .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("FR-43: GET /delivery-log shows each e-mail's delivery status (admin only)")
+    void deliveryLog() throws Exception {
+        when(emailService.sendNotificationEmail(anyString(), anyString(), anyString(), anyString())).thenReturn(false);
+        notificationService.create(player.getUserID(), "BOOKING_MADE", "Queued one", "Body");
+
+        mockMvc.perform(get("/api/notifications/delivery-log").param("status", "QUEUED")
+                .header("Authorization", adminToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.counts.QUEUED", greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$.entries[0].title").value("Queued one"))
+            .andExpect(jsonPath("$.entries[0].status").value("QUEUED"))
+            .andExpect(jsonPath("$.entries[0].attempts").value(1));
+
+        mockMvc.perform(get("/api/notifications/delivery-log").header("Authorization", tokenFor(player)))
+            .andExpect(status().isForbidden());
+    }
 }

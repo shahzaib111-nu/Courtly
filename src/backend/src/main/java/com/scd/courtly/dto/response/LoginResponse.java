@@ -6,11 +6,12 @@ public record LoginResponse(
     String message,
     String playerID,
     String name,
+    String email,          // the account's e-mail, also when the user signed in with a username
     String accountStatus,
     String token,
     long expiresIn
 ) {
     public static LoginResponse failure(String message) {
-        return new LoginResponse(false, null, message, null, null, null, null, 0);
+        return new LoginResponse(false, null, message, null, null, null, null, null, 0);
     }
 }

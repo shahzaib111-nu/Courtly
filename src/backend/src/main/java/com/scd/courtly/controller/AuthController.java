@@ -5,7 +5,11 @@ import com.scd.courtly.dto.request.*;
 import com.scd.courtly.dto.response.ProfileResponse;
 import com.scd.courtly.dto.response.RegistrationResponse;
 import com.scd.courtly.dto.response.LoginResponse;
+import com.scd.courtly.exception.BusinessException;
+import com.scd.courtly.exception.NotFoundException;
 import com.scd.courtly.exception.UnauthorizedException;
+import com.scd.courtly.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.PlayerRepository;
@@ -37,6 +41,9 @@ public class AuthController {
     private PlayerRepository playerRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private NotificationService notificationService;
 
     @Autowired
@@ -57,6 +64,10 @@ public class AuthController {
             newPlayer.setPhone(request.phone());
             newPlayer.setDateOfBirth(request.dateOfBirth());
             newPlayer.setRole("MANAGER".equalsIgnoreCase(request.role()) ? "MANAGER" : "PLAYER");
+            newPlayer.setUsername(request.username());
+            if ("PLAYER".equals(newPlayer.getRole())) {
+                applyCategory(newPlayer, request.category(), request.groupSize());
+            }
 
             User savedUser = userService.register(newPlayer);
 
@@ -91,14 +102,21 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
-            @RequestParam String email,
+            @RequestParam String email,          // e-mail address or username (FR-5)
             @RequestParam String pass,
             @RequestParam(required = false) String role) {
         LoginResponse result = userService.login(email, pass, role);
+        if (!result.success() && result.message() != null
+                && result.message().startsWith(UserService.ACCOUNT_LOCKED)) {
+            String minutes = result.message().substring(UserService.ACCOUNT_LOCKED.length() + 1);
+            throw new BusinessException("Too many failed sign-in attempts. This account is locked for "
+                + minutes + " more minute" + ("1".equals(minutes) ? "" : "s")
+                + ". You can also reset your password with \"Forgot your password?\".", HttpStatus.LOCKED);
+        }
         if (!result.success()) {
             throw new UnauthorizedException(
                 switch (result.message() == null ? "" : result.message()) {
-                    case "EMAIL_NOT_FOUND" -> "No account found with that email address";
+                    case "EMAIL_NOT_FOUND" -> "No account found with that email address or username";
                     case "ACCOUNT_PENDING_DELETION" -> "This account is pending deletion";
                     default -> result.message() != null && result.message().startsWith("ROLE_MISMATCH")
                         ? "Incorrect account role" : "Incorrect email or password";
@@ -115,14 +133,50 @@ public class AuthController {
         if (playerOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        Player p = playerOpt.get();
-        ProfileResponse profile = new ProfileResponse(
-            p.getName(), p.getEmail(), p.getPhone(), p.getDateOfBirth(),
+        return ResponseEntity.ok(toProfile(playerOpt.get()));
+    }
+
+    /** FR-10: the signed-in user updates their own profile. */
+    @PreAuthorize("hasRole('USER')")
+    @PutMapping("/profile")
+    public ResponseEntity<ProfileResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        AccessGuard.Caller caller = guard.caller();
+        Player p = playerRepository.findById(caller.userId())
+                .orElseThrow(() -> new NotFoundException("Account not found"));
+
+        String username = UserService.normalizeUsername(request.username());
+        if (username != null && !username.equals(p.getUsername())
+                && userRepository.existsByUsername(username)) {
+            throw new ConflictException("That username is already taken. Please choose another.");
+        }
+        p.setUsername(username);
+        p.setName(request.name().trim());
+        p.setPhone(request.phone().trim());
+        p.setDateOfBirth(request.dateOfBirth());
+        if (!"MANAGER".equals(p.getRole())) {
+            applyCategory(p, request.category(), request.groupSize());
+        }
+        return ResponseEntity.ok(toProfile(playerRepository.save(p)));
+    }
+
+    private static ProfileResponse toProfile(Player p) {
+        return new ProfileResponse(
+            p.getName(), p.getEmail(), p.getUsername(), p.getPhone(), p.getDateOfBirth(),
+            p.getCategory() != null ? p.getCategory() : "REGULAR", p.getGroupMemberCount(),
             p.getDiscountTier() != null ? p.getDiscountTier() : "NONE",
             p.getAccountStatus(), p.getDeletionStatus(),
             p.getAuthProvider() != null ? p.getAuthProvider() : "LOCAL",
             p.getPasswordHash() != null && !p.getPasswordHash().isBlank());
-        return ResponseEntity.ok(profile);
+    }
+
+    /** FR-9: Regular (default), Student, Senior, Family or Group; a group also needs its size. */
+    private static void applyCategory(Player p, String category, Integer groupSize) {
+        String c = category == null || category.isBlank() ? "REGULAR" : category.trim().toUpperCase();
+        if ("GROUP".equals(c) && groupSize == null) {
+            throw new BusinessException("Enter the number of people in your group (2-50).");
+        }
+        p.setCategory(c);
+        p.setGroupMemberCount("GROUP".equals(c) ? groupSize : null);
     }
 
     @PreAuthorize("hasRole('USER')")
@@ -226,6 +280,7 @@ public class AuthController {
         p.setPasswordHash(passwordEncoder.encode(newPass));
         p.setOtpCode(null);
         p.setOtpExpiry(null);
+        userService.clearLockout(p);   // proving ownership of the e-mail lifts a lockout
         playerRepository.save(p);
         return ResponseEntity.ok(Map.of("message", "Password reset successfully. You can now sign in."));
     }

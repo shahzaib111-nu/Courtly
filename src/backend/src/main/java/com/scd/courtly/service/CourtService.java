@@ -1,6 +1,8 @@
 package com.scd.courtly.service;
 
 import com.scd.courtly.model.Court;
+import com.scd.courtly.exception.ConflictException;
+import com.scd.courtly.repository.BookingRepository;
 import com.scd.courtly.repository.CourtRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,7 @@ import java.util.*;
 public class CourtService {
 
     private final CourtRepository courtRepository;
+    private final BookingRepository bookingRepository;
 
     public List<Court> getAllCourts() {
         return courtRepository.findAll();
@@ -52,8 +55,19 @@ public class CourtService {
         });
     }
 
+    /**
+     * FR-34: a court with active future bookings (pending payment or confirmed, today or later)
+     * cannot be removed; the manager must cancel those bookings or wait until they are over.
+     */
     public boolean deleteCourt(String id) {
         if (!courtRepository.existsById(id)) return false;
+        long upcoming = bookingRepository.countByCourtIDAndStatusInAndBookingDateGreaterThanEqual(
+                id, List.of("PENDING", "CONFIRMED"), java.time.LocalDate.now().toString());
+        if (upcoming > 0) {
+            throw new ConflictException("This court cannot be removed because it has " + upcoming
+                + " upcoming booking" + (upcoming == 1 ? "" : "s")
+                + ". Cancel them first, or mark the court as under maintenance instead.");
+        }
         courtRepository.deleteById(id);
         return true;
     }

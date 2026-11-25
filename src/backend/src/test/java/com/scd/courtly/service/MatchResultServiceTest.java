@@ -1,5 +1,7 @@
 package com.scd.courtly.service;
 
+import com.scd.courtly.exception.BusinessException;
+import com.scd.courtly.exception.ConflictException;
 import com.scd.courtly.model.Booking;
 import com.scd.courtly.model.MatchResult;
 import com.scd.courtly.model.Player;
@@ -8,6 +10,7 @@ import com.scd.courtly.repository.MatchResultRepository;
 import com.scd.courtly.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +38,7 @@ class MatchResultServiceTest {
     @Mock private MatchResultRepository matchResultRepository;
     @Mock private BookingRepository     bookingRepository;
     @Mock private PlayerRepository      playerRepository;
+    @Mock private NotificationService   notificationService;
 
     @InjectMocks private MatchResultService service;
 
@@ -276,9 +280,8 @@ class MatchResultServiceTest {
 
         service.submitResult(BOOKING_ID, PLAYER_ID, "Opponent", 1, 5, "LOSS");
 
-        ArgumentCaptor<Player> captor = ArgumentCaptor.forClass(Player.class);
-        verify(playerRepository).save(captor.capture());
-        assertThat(captor.getValue().getRankPoints()).isEqualTo(10); // 10 + 0
+        assertThat(player.getRankPoints()).isEqualTo(10); // 10 + 0
+        verify(playerRepository, never()).save(any());     // nothing to add
     }
 
     // ── TC-16  getPlayerHistory delegates to repository ───────────────────────
@@ -303,5 +306,87 @@ class MatchResultServiceTest {
     void isResultSubmitted_false_whenRepositoryReturnsFalse() {
         when(matchResultRepository.existsByBookingID(BOOKING_ID)).thenReturn(false);
         assertThat(service.isResultSubmitted(BOOKING_ID)).isFalse();
+    }
+
+    // ── FR-38  Disputed results ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("FR-38: a WIN with a losing score is saved as DISPUTED, earns no points and alerts the admin")
+    void submitResult_conflictingScore_isDisputed() {
+        when(bookingRepository.findById(BOOKING_ID)).thenReturn(Optional.of(confirmedPastBooking()));
+        Player player = playerWithPoints(10);
+        when(playerRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
+
+        MatchResult mr = service.submitResult(BOOKING_ID, PLAYER_ID, "Opponent", 2, 6, "WIN");
+
+        assertThat(mr.getStatus()).isEqualTo("DISPUTED");
+        assertThat(mr.getDisputeReason()).contains("WIN").contains("2-6");
+        assertThat(mr.getPointsEarned()).isZero();
+        assertThat(player.getRankPoints()).isEqualTo(10);
+        verify(notificationService).create(eq(NotificationService.ADMIN_USER_ID), eq("MATCH_DISPUTED"), any(), any());
+        verify(notificationService).create(eq(PLAYER_ID), eq("MATCH_DISPUTED"), any(), any());
+    }
+
+    @Test
+    @DisplayName("FR-38: a consistent result is VALID and sends no dispute alert")
+    void submitResult_consistent_isValid() {
+        when(bookingRepository.findById(BOOKING_ID)).thenReturn(Optional.of(confirmedPastBooking()));
+
+        MatchResult mr = service.submitResult(BOOKING_ID, PLAYER_ID, "Opponent", 2, 2, "DRAW");
+
+        assertThat(mr.getStatus()).isEqualTo("VALID");
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("FR-38: conflict rules for WIN, LOSS and DRAW")
+    void conflictReason_rules() {
+        assertThat(MatchResultService.conflictReason(3, 1, "WIN")).isNull();
+        assertThat(MatchResultService.conflictReason(1, 1, "WIN")).isNotNull();
+        assertThat(MatchResultService.conflictReason(1, 3, "LOSS")).isNull();
+        assertThat(MatchResultService.conflictReason(3, 1, "LOSS")).isNotNull();
+        assertThat(MatchResultService.conflictReason(2, 2, "DRAW")).isNull();
+        assertThat(MatchResultService.conflictReason(2, 1, "DRAW")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("FR-38: an admin resolves a dispute; the points are then awarded and the player told")
+    void resolveDispute_awardsPoints() {
+        MatchResult disputed = savedResult("WIN", 0);
+        disputed.setStatus("DISPUTED");
+        when(matchResultRepository.findById("match-001")).thenReturn(Optional.of(disputed));
+        Player player = playerWithPoints(10);
+        when(playerRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
+
+        MatchResult resolved = service.resolveDispute("match-001", 6, 2, "win");
+
+        assertThat(resolved.getStatus()).isEqualTo("RESOLVED");
+        assertThat(resolved.getResolvedAt()).isNotNull();
+        assertThat(resolved.getPointsEarned()).isEqualTo(3);
+        assertThat(player.getRankPoints()).isEqualTo(13);
+        verify(notificationService).create(eq(PLAYER_ID), eq("MATCH_RESOLVED"), any(), any());
+    }
+
+    @Test
+    @DisplayName("FR-38: the admin's decision must itself be consistent")
+    void resolveDispute_inconsistentDecision_rejected() {
+        MatchResult disputed = savedResult("WIN", 0);
+        disputed.setStatus("DISPUTED");
+        when(matchResultRepository.findById("match-001")).thenReturn(Optional.of(disputed));
+
+        assertThatThrownBy(() -> service.resolveDispute("match-001", 1, 4, "WIN"))
+            .isInstanceOf(BusinessException.class);
+        assertThat(disputed.getStatus()).isEqualTo("DISPUTED");
+    }
+
+    @Test
+    @DisplayName("FR-38: only disputed results can be resolved")
+    void resolveDispute_notDisputed_rejected() {
+        MatchResult valid = savedResult("WIN", 3);
+        valid.setStatus("VALID");
+        when(matchResultRepository.findById("match-001")).thenReturn(Optional.of(valid));
+
+        assertThatThrownBy(() -> service.resolveDispute("match-001", 6, 2, "WIN"))
+            .isInstanceOf(ConflictException.class);
     }
 }

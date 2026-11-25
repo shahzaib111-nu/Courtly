@@ -65,7 +65,7 @@ public class OAuth2AccountService {
 
         String accountStatus = "MANAGER".equalsIgnoreCase(actualRole) ? user.getAccountStatus() : null;
         String token = jwtService.generateToken(user.getEmail(), actualRole, user.getUserID());
-        return new LoginResponse(true, actualRole, null, user.getUserID(), user.getName(),
+        return new LoginResponse(true, actualRole, null, user.getUserID(), user.getName(), user.getEmail(),
             accountStatus, token, jwtService.getExpirationMs());
     }
 
@@ -89,6 +89,7 @@ public class OAuth2AccountService {
         player.setAccountStatus("MANAGER".equals(role) ? "PENDING_APPROVAL" : "Active");
         player.setAuthProvider(profile.provider());
         player.setProviderId(profile.providerId());
+        player.setCategory("MANAGER".equals(role) ? null : "REGULAR"); // can be changed on the profile page
         User saved = userRepository.save(player);
 
         String providerLabel = "GOOGLE".equals(profile.provider()) ? "Google" : "GitHub";

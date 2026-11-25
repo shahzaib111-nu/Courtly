@@ -59,6 +59,10 @@ async function loadVerificationStatus() {
                 document.getElementById('profileEmail').textContent = p.email     || '—';
                 document.getElementById('profileAuthProvider').textContent = oauthModel.signInMethodLabel(p.authProvider);
                 document.getElementById('profilePhone').textContent = p.phone     || '—';
+                document.getElementById('profileUsername').textContent = p.username || '—';
+                document.getElementById('profileCategory').textContent =
+                    profileController.categoryLabel(p.category) + (p.category === 'GROUP' && p.groupSize ? ` (${p.groupSize} people)` : '');
+                profileController.current = p;
                 document.getElementById('profileDob').textContent   = p.dateOfBirth
                     ? new Date(p.dateOfBirth).toLocaleDateString('en-PK', { day: 'numeric', month: 'long', year: 'numeric' })
                     : '—';
@@ -89,7 +93,129 @@ async function loadVerificationStatus() {
             } catch (_) {}
         }
 
+        // ── Edit profile (FR-10) ─────────────────────────────────────────────
+        const profileController = {
+            current: null,
+
+            categoryLabel(c) {
+                return ({ REGULAR: 'Regular', STUDENT: 'Student', SENIOR: 'Senior', FAMILY: 'Family', GROUP: 'Group' })[c] || 'Regular';
+            },
+
+            open() {
+                const p = this.current || {};
+                document.getElementById('editName').value      = p.name || '';
+                document.getElementById('editUsername').value  = p.username || '';
+                document.getElementById('editPhone').value     = p.phone || '';
+                document.getElementById('editDob').value       = p.dateOfBirth || '';
+                document.getElementById('editCategory').value  = p.category || 'REGULAR';
+                document.getElementById('editGroupSize').value = p.groupSize || '';
+                toggleGroupSize('editCategory', 'editGroupSizeRow');
+                document.getElementById('profileError').classList.add('hidden');
+                const modal = document.getElementById('profileModal');
+                modal.classList.remove('hidden'); modal.classList.add('flex');
+            },
+
+            close() {
+                const modal = document.getElementById('profileModal');
+                modal.classList.add('hidden'); modal.classList.remove('flex');
+            },
+
+            _error(msg) {
+                const el = document.getElementById('profileError');
+                el.textContent = msg;
+                el.classList.remove('hidden');
+            },
+
+            async save() {
+                const body = {
+                    name:        document.getElementById('editName').value.trim(),
+                    username:    document.getElementById('editUsername').value.trim(),
+                    phone:       document.getElementById('editPhone').value.trim(),
+                    dateOfBirth: document.getElementById('editDob').value,
+                    category:    document.getElementById('editCategory').value,
+                };
+                if (body.category === 'GROUP') body.groupSize = Number(document.getElementById('editGroupSize').value);
+
+                if (body.name.length < 2)  return this._error('Enter your full name.');
+                if (body.username && !/^[A-Za-z0-9._]{3,30}$/.test(body.username))
+                    return this._error('Username: use 3-30 letters, numbers, dots or underscores.');
+                if (!body.phone)           return this._error('Enter your phone number.');
+                if (!body.dateOfBirth)     return this._error('Enter your date of birth.');
+                if (body.category === 'GROUP' && !(body.groupSize >= 2 && body.groupSize <= 50))
+                    return this._error('Enter the number of people in your group (2-50).');
+
+                const btn = document.getElementById('saveProfileBtn');
+                btn.disabled = true; btn.textContent = 'Saving…';
+                try {
+                    const res  = await fetch(`${AUTH_API}/profile`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) return this._error(apiErrorText(data, 'Your profile could not be saved.'));
+                    localStorage.setItem('playerName', data.name || body.name);
+                    this.close();
+                    await loadProfile();
+                    if (typeof showPopup === 'function') showPopup('Profile updated.');
+                } catch {
+                    this._error(`Cannot connect to server. Make sure the backend is running at ${API_BASE}.`);
+                } finally {
+                    btn.disabled = false; btn.textContent = 'Save Changes';
+                }
+            }
+        };
+
+        // ── Payment history (FR-26) ──────────────────────────────────────────
+        const paymentHistoryController = {
+            async load() {
+                const box = document.getElementById('paymentHistoryContainer');
+                const playerID = localStorage.getItem('playerID');
+                if (!box || !playerID) return;
+                const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+                const pkr = n => `PKR ${Math.round(Number(n) || 0).toLocaleString()}`;
+                try {
+                    const res = await fetch(`${API_BASE}/api/payments/player/${encodeURIComponent(playerID)}`);
+                    if (!res.ok) throw new Error();
+                    const payments = await res.json();
+                    if (!payments.length) {
+                        box.innerHTML = '<p class="text-slate-400 text-sm">No payments yet. Paid bookings and their receipts will appear here.</p>';
+                        return;
+                    }
+                    box.innerHTML = `
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead><tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                <th class="py-2 pr-4">Receipt</th><th class="py-2 pr-4">Court</th><th class="py-2 pr-4">Session</th>
+                                <th class="py-2 pr-4">Paid</th><th class="py-2 pr-4">Card</th><th class="py-2 pr-4">Status</th><th class="py-2"></th>
+                            </tr></thead>
+                            <tbody class="divide-y divide-slate-700/50">
+                            ${payments.map(p => {
+                                const paidAt = p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                                const refunded = p.status === 'REFUNDED';
+                                return `<tr>
+                                    <td class="py-3 pr-4 font-mono text-xs text-slate-300">${esc(p.receiptNo)}</td>
+                                    <td class="py-3 pr-4 text-slate-200">${esc(p.courtName)}</td>
+                                    <td class="py-3 pr-4 text-slate-400 text-xs">${esc(p.bookingDate || '—')}<br>${esc(p.timeSlot || '')}</td>
+                                    <td class="py-3 pr-4 text-white font-semibold">${pkr(p.amountPaid)}<br><span class="text-xs text-slate-500 font-normal">${paidAt}</span></td>
+                                    <td class="py-3 pr-4 text-slate-400 text-xs">${esc((p.cardBrand || '').toUpperCase())} ${esc(p.maskedCard || '')}</td>
+                                    <td class="py-3 pr-4"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${refunded
+                                        ? 'bg-sky-900/50 text-sky-300' : 'bg-emerald-900/50 text-emerald-300'}">${refunded ? 'Refunded' : 'Paid'}</span></td>
+                                    <td class="py-3 text-right">${refunded ? '' : `<a href="checkout.html?bookingID=${encodeURIComponent(p.bookingID)}"
+                                        class="text-xs text-indigo-400 hover:text-indigo-300 whitespace-nowrap">View receipt →</a>`}</td>
+                                </tr>`;
+                            }).join('')}
+                            </tbody>
+                        </table>
+                        </div>`;
+                } catch {
+                    box.innerHTML = '<p class="text-rose-400 text-sm">Could not load your payment history.</p>';
+                }
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             loadVerificationStatus();
             loadProfile();
+            paymentHistoryController.load();
         });

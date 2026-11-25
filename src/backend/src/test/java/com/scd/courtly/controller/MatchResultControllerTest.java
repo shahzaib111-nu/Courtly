@@ -91,4 +91,62 @@ class MatchResultControllerTest extends IntegrationTest {
             .andExpect(jsonPath("$[0].rank").value(1))
             .andExpect(jsonPath("$[0].winRate").value(100.0));
     }
+
+    private ResultActions submitScore(int playerScore, int opponentScore, String result) throws Exception {
+        return mockMvc.perform(post("/api/matches/submit").header("Authorization", tokenFor(player))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(json(Map.of("bookingID", booking.getBookingID(), "playerID", player.getUserID(),
+                "opponentName", "Rival", "playerScore", playerScore, "opponentScore", opponentScore,
+                "result", result))));
+    }
+
+    @Test
+    @DisplayName("FR-38: conflicting data is saved as DISPUTED; an admin resolves it and points are awarded")
+    void disputeAndResolve() throws Exception {
+        String body = submitScore(1, 4, "WIN")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DISPUTED"))
+            .andExpect(jsonPath("$.pointsEarned").value(0))
+            .andReturn().getResponse().getContentAsString();
+        String matchID = objectMapper.readTree(body).get("matchID").asText();
+        assertThat(playerRepository.findById(player.getUserID()).orElseThrow().getRankPoints()).isZero();
+
+        // Left out of the admin rankings report while disputed
+        mockMvc.perform(get("/api/matches/rankings").header("Authorization", adminToken()))
+            .andExpect(jsonPath("$[*].playerID", not(hasItem(player.getUserID()))));
+
+        mockMvc.perform(get("/api/matches/disputed").header("Authorization", adminToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].matchID", hasItem(matchID)));
+
+        mockMvc.perform(post("/api/matches/{id}/resolve", matchID).header("Authorization", adminToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("playerScore", 4, "opponentScore", 1, "result", "WIN"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("RESOLVED"))
+            .andExpect(jsonPath("$.pointsEarned").value(3));
+
+        assertThat(playerRepository.findById(player.getUserID()).orElseThrow().getRankPoints()).isEqualTo(3);
+        mockMvc.perform(get("/api/matches/disputed").header("Authorization", adminToken()))
+            .andExpect(jsonPath("$[*].matchID", not(hasItem(matchID))));
+    }
+
+    @Test
+    @DisplayName("FR-38: only admins can list or resolve disputes")
+    void disputesAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/matches/disputed").header("Authorization", tokenFor(player)))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/matches/{id}/resolve", "any").header("Authorization", tokenFor(player))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("playerScore", 4, "opponentScore", 1, "result", "WIN"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("negative scores → 400")
+    void negativeScore() throws Exception {
+        submitScore(-1, 2, "LOSS")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.fieldErrors.playerScore").exists());
+    }
 }

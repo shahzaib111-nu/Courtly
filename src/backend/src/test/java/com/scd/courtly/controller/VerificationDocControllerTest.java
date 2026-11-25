@@ -1,10 +1,12 @@
 package com.scd.courtly.controller;
 
 import com.scd.courtly.model.Player;
+import com.scd.courtly.model.VerificationDocContent;
+import com.scd.courtly.repository.VerificationDocContentRepository;
 import com.scd.courtly.repository.VerificationDocRepository;
+import com.scd.courtly.service.DocumentStorageService;
 import com.scd.courtly.support.IntegrationTest;
 import com.scd.courtly.support.TestData;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,11 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.ResultActions;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -26,18 +26,16 @@ class VerificationDocControllerTest extends IntegrationTest {
 
     @Autowired VerificationDocRepository docRepository;
 
+    @Autowired VerificationDocContentRepository contentRepository;
+
+    private static final byte[] PDF = "%PDF-1.4 student card".getBytes();
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3};
+
     private Player player;
-    private final List<String> uploadedFiles = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         player = newPlayer();
-    }
-
-    /** Uploads write real files to uploads/verification/; remove the ones this test created. */
-    @AfterEach
-    void deleteUploadedFiles() throws Exception {
-        for (String f : uploadedFiles) Files.deleteIfExists(Path.of(f));
     }
 
     private ResultActions upload(String filename, byte[] content, String email) throws Exception {
@@ -45,14 +43,13 @@ class VerificationDocControllerTest extends IntegrationTest {
             .file(new MockMultipartFile("file", filename, "application/octet-stream", content))
             .param("docType", "STUDENT_ID").param("playerEmail", email)
             .header("Authorization", tokenFor(player)));
-        docRepository.findByPlayer_UserID(player.getUserID()).forEach(d -> uploadedFiles.add(d.getFileURL()));
         return result;
     }
 
     @Test
     @DisplayName("POST /upload stores a PENDING document that can be viewed")
     void uploadAndView() throws Exception {
-        String body = upload("student-id.pdf", "%PDF-1.4 test".getBytes(), player.getEmail())
+        String body = upload("student-id.pdf", PDF, player.getEmail())
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PENDING"))
             .andExpect(jsonPath("$.docID", startsWith("DOC-")))
@@ -64,7 +61,35 @@ class VerificationDocControllerTest extends IntegrationTest {
 
         mockMvc.perform(get("/api/docs/view/{id}", docID).header("Authorization", adminToken()))
             .andExpect(status().isOk())
-            .andExpect(content().contentType("application/pdf"));
+            .andExpect(content().contentType("application/pdf"))
+            .andExpect(content().bytes(PDF));
+    }
+
+    @Test
+    @DisplayName("NFR 2.2.1: the document is stored encrypted in the database, not as a readable file")
+    void storedEncrypted() throws Exception {
+        String body = upload("card.png", PNG, player.getEmail())
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fileURL").value(DocumentStorageService.ENCRYPTED_DB))
+            .andReturn().getResponse().getContentAsString();
+        String docID = objectMapper.readTree(body).get("docID").asText();
+
+        VerificationDocContent stored = contentRepository.findById(docID).orElseThrow();
+        assertThat(stored.getContentType()).isEqualTo("image/png");
+        assertThat(stored.getOriginalSize()).isEqualTo(PNG.length);
+        assertThat(stored.getEncryptedData()).isNotEqualTo(PNG);
+        assertThat(new String(stored.getEncryptedData(), java.nio.charset.StandardCharsets.ISO_8859_1))
+            .doesNotContain("PNG");                                   // the plaintext is not visible
+        assertThat(stored.getEncryptedData().length).isEqualTo(1 + 12 + PNG.length + 16); // version, IV, tag
+    }
+
+    @Test
+    @DisplayName("NFR 2.2.2: a file whose content is not really a JPG/PNG/PDF is rejected")
+    void fakeExtension() throws Exception {
+        upload("notes.pdf", "just some text".getBytes(), player.getEmail())
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", containsString("not a valid JPG, PNG or PDF")));
+        assertThat(docRepository.findByPlayer_UserID(player.getUserID())).isEmpty();
     }
 
     @Test
@@ -78,9 +103,9 @@ class VerificationDocControllerTest extends IntegrationTest {
     @Test
     @DisplayName("POST /upload to someone else's account → 403")
     void otherAccount() throws Exception {
-        upload("id.png", new byte[]{1}, TestData.PLAYER_EMAIL)
+        upload("id.png", PNG, TestData.PLAYER_EMAIL)
             .andExpect(status().isForbidden());
-        upload("id.png", new byte[]{1}, "ghost@test.local")
+        upload("id.png", PNG, "ghost@test.local")
             .andExpect(status().isForbidden());
     }
 

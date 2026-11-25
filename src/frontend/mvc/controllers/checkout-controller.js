@@ -80,6 +80,29 @@
 
     if (!checkout.publishableKey) { blockCheckout('Online payments are not configured on this server.'); return; }
 
+    // --- Payment window countdown (NFR 3.2: the slot is held for 10 minutes) ---
+    const timerEl  = document.getElementById('payment-timer');
+    const deadline = checkout.paymentDeadline ? new Date(checkout.paymentDeadline) : null;
+    if (timerEl && deadline && !isNaN(deadline)) {
+        timerEl.classList.remove('hidden');
+        const tick = () => {
+            const left = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+            if (left === 0) {
+                clearInterval(timer);
+                timerEl.textContent = '⏰ The payment window has ended and the slot was released.';
+                if (!successContainer || successContainer.classList.contains('hidden')) {
+                    blockCheckout('The 10-minute payment window has ended. Please book the slot again.');
+                }
+                return;
+            }
+            const mm = String(Math.floor(left / 60)).padStart(2, '0');
+            const ss = String(left % 60).padStart(2, '0');
+            timerEl.textContent = `⏳ Slot held for you: complete payment within ${mm}:${ss}`;
+        };
+        const timer = setInterval(tick, 1000);
+        tick();
+    }
+
     // --- 3. Stripe card form ---
     const stripe   = Stripe(checkout.publishableKey);
     const elements = stripe.elements();

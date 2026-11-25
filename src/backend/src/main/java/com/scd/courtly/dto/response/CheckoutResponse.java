@@ -14,5 +14,6 @@ public record CheckoutResponse(
     double subtotal,        // before discount
     double discount,        // PKR off
     double amount,          // PKR to pay
-    String currency
+    String currency,
+    String paymentDeadline  // ISO local date-time; the slot is released after this (NFR 3.2)
 ) {}

@@ -6,7 +6,6 @@ import com.scd.courtly.model.Player;
 import com.scd.courtly.repository.BookingRepository;
 import com.scd.courtly.repository.CourtRepository;
 import com.scd.courtly.repository.PlayerRepository;
-import com.scd.courtly.repository.VerificationDocRepository;
 import com.scd.courtly.support.Fixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -35,7 +34,7 @@ import static org.mockito.Mockito.*;
 class SchedulerServiceTest {
 
     @Mock PlayerRepository playerRepository;
-    @Mock VerificationDocRepository verificationDocRepository;
+    @Mock DocumentStorageService documentStorage;
     @Mock BookingRepository bookingRepository;
     @Mock CourtRepository courtRepository;
     @Mock NotificationService notificationService;
@@ -103,11 +102,10 @@ class SchedulerServiceTest {
     void deletesExpiredAccounts() {
         Player p = Fixtures.player("P1", "p1@x.com");
         when(playerRepository.findByDeletionStatusAndDeletionRequestedAtBefore(eq("PENDING"), any())).thenReturn(List.of(p));
-        when(verificationDocRepository.findByPlayer_UserID("P1")).thenReturn(List.of());
 
         scheduler.cleanExpiredDeletions();
 
-        verify(verificationDocRepository).deleteAll(List.of());
+        verify(documentStorage).deleteAllFor("P1");
         verify(playerRepository).delete(p);
     }
 

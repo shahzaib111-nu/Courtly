@@ -723,3 +723,7 @@ VALUES ('RTG010','BKG019','PLR003','CRT-FUT-2','Packages Futsal Club',
 -- Seeded and pre-existing accounts use email/password. Hibernate adds the
 -- auth_provider / provider_id columns; Google/GitHub sign-ups fill them in.
 UPDATE app_users SET auth_provider = 'LOCAL' WHERE auth_provider IS NULL;
+
+-- ── Match result status (FR-38) ──────────────────────────────────────────────
+-- Results saved before disputes existed are valid.
+UPDATE match_results SET status = 'VALID' WHERE status IS NULL;

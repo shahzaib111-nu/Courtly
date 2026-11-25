@@ -40,10 +40,18 @@ public class MatchResult {
 
     private int pointsEarned;
 
+    // FR-38: VALID (counts for rankings), DISPUTED (the scores contradict the stated
+    // result; waiting for an admin) or RESOLVED (an admin set the final result).
+    private String status;
+    @Column(length = 300)
+    private String disputeReason;
+    private LocalDateTime resolvedAt;
+
     private LocalDateTime submittedAt;
 
     @PrePersist
     protected void setDefaults() {
         if (submittedAt == null) submittedAt = LocalDateTime.now();
+        if (status == null) status = "VALID";
     }
 }

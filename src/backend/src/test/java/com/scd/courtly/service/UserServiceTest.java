@@ -1,6 +1,7 @@
 package com.scd.courtly.service;
 
 import com.scd.courtly.dto.response.LoginResponse;
+import com.scd.courtly.exception.ConflictException;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
 import com.scd.courtly.repository.UserRepository;
@@ -21,9 +22,11 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -174,6 +177,121 @@ class UserServiceTest {
         void adminOnPlayerTab() {
             assertThat(service.login("admin.playfair@gmail.com", "Admin123", "PLAYER").message())
                 .isEqualTo("ROLE_MISMATCH:ADMIN");
+        }
+    }
+
+    @Nested
+    @DisplayName("Username sign-in (FR-1, FR-5)")
+    class Username {
+
+        @Test
+        @DisplayName("registration stores the username in lower case")
+        void storedLowerCase() {
+            Player p = Fixtures.player(null, "u@x.com");
+            p.setPasswordHash("Secret123");
+            p.setUsername("  Hamza_R ");
+            assertThat(service.register(p).getUsername()).isEqualTo("hamza_r");
+        }
+
+        @Test
+        @DisplayName("a taken username is rejected")
+        void takenUsername() {
+            when(userRepository.existsByUsername("hamza")).thenReturn(true);
+            Player p = Fixtures.player(null, "new@x.com");
+            p.setPasswordHash("Secret123");
+            p.setUsername("Hamza");
+            assertThatThrownBy(() -> service.register(p)).isInstanceOf(ConflictException.class);
+            verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("login accepts a username (any case) instead of the e-mail")
+        void loginWithUsername() {
+            Player p = Fixtures.player("U-1", "p@x.com");
+            p.setRole("PLAYER");
+            p.setPasswordHash(passwordEncoder.encode("Secret123"));
+            when(userRepository.findByUsername("hamza")).thenReturn(Optional.of(p));
+
+            LoginResponse r = service.login("Hamza", "Secret123", "PLAYER");
+
+            assertThat(r.success()).isTrue();
+            assertThat(r.email()).isEqualTo("p@x.com");   // the browser needs the real e-mail
+            verify(userRepository, never()).findByEmail(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Account lockout (NFR 2.1.2)")
+    class Lockout {
+
+        @Test
+        @DisplayName("the 5th wrong password in a row locks the account for 10 minutes")
+        void locksAfterFiveFailures() {
+            Player p = stored("p@x.com", "Secret123", "PLAYER");
+            for (int i = 1; i < UserService.MAX_FAILED_LOGINS; i++) {
+                assertThat(service.login("p@x.com", "Wrong123", null).message()).isEqualTo("INVALID_CREDENTIALS");
+                assertThat(p.getFailedLoginAttempts()).isEqualTo(i);
+            }
+
+            LoginResponse fifth = service.login("p@x.com", "Wrong123", null);
+
+            assertThat(fifth.message()).isEqualTo("ACCOUNT_LOCKED:10");
+            assertThat(p.getLockedUntil())
+                .isBetween(LocalDateTime.now().plusMinutes(9), LocalDateTime.now().plusMinutes(10));
+        }
+
+        @Test
+        @DisplayName("a locked account rejects even the correct password")
+        void lockedRejectsCorrectPassword() {
+            Player p = stored("p@x.com", "Secret123", "PLAYER");
+            p.setLockedUntil(LocalDateTime.now().plusMinutes(4));
+
+            LoginResponse r = service.login("p@x.com", "Secret123", null);
+
+            assertThat(r.success()).isFalse();
+            assertThat(r.message()).isEqualTo("ACCOUNT_LOCKED:4");
+            verify(jwtService, never()).generateToken(anyString(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("once the lock expires the user can sign in, and the counter resets")
+        void lockExpires() {
+            Player p = stored("p@x.com", "Secret123", "PLAYER");
+            p.setLockedUntil(LocalDateTime.now().minusSeconds(1));
+            p.setFailedLoginAttempts(3);
+
+            assertThat(service.login("p@x.com", "Secret123", null).success()).isTrue();
+            assertThat(p.getFailedLoginAttempts()).isZero();
+            assertThat(p.getLockedUntil()).isNull();
+        }
+
+        @Test
+        @DisplayName("a successful login resets the failure counter")
+        void successResets() {
+            Player p = stored("p@x.com", "Secret123", "PLAYER");
+            p.setFailedLoginAttempts(4);
+            assertThat(service.login("p@x.com", "Secret123", null).success()).isTrue();
+            assertThat(p.getFailedLoginAttempts()).isZero();
+        }
+
+        @Test
+        @DisplayName("accounts created before lockout existed (NULL counter) still work")
+        void nullCounter() {
+            Player p = stored("p@x.com", "Secret123", "PLAYER");
+            p.setFailedLoginAttempts(null);
+            assertThat(service.login("p@x.com", "Wrong123", null).message()).isEqualTo("INVALID_CREDENTIALS");
+            assertThat(p.getFailedLoginAttempts()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("the built-in admin is locked out the same way")
+        void adminLockout() {
+            for (int i = 1; i < UserService.MAX_FAILED_LOGINS; i++) {
+                service.login("admin.playfair@gmail.com", "Wrong123", null);
+            }
+            assertThat(service.login("admin.playfair@gmail.com", "Wrong123", null).message())
+                .startsWith("ACCOUNT_LOCKED:");
+            assertThat(service.login("admin.playfair@gmail.com", "Admin123", null).success()).isFalse();
         }
     }
 }

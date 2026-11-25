@@ -122,6 +122,9 @@ The server is the single source of truth for what a player pays:
 2. The checkout page charges the card with Stripe.js. Card numbers never reach the Courtly server.
 3. `POST /api/payments/confirm { bookingID, paymentIntentID }`: the server asks Stripe whether the payment really succeeded and for the right amount. It then saves a `Payment` (receipt number `CRT-YYYYMMDD-XXXXXX`, card brand and **last four digits only**) and marks the booking `CONFIRMED`. Calling it twice is safe.
 4. `GET /api/payments/booking/{bookingID}`: the receipt, visible only to the player who paid or an admin.
+5. `GET /api/payments/player/{playerID}`: the player's payment history with receipts (the "Payment History" card on the dashboard).
+
+An unpaid booking holds its slot for **10 minutes** (NFR 3.2). The checkout page shows a countdown; after that the booking can no longer be paid and the slot is released within a minute.
 
 If a booking expires while the player is paying, the payment is refunded automatically. Test card: `4242 4242 4242 4242`, any future expiry date and any CVC.
 
@@ -180,6 +183,29 @@ The caller's identity always comes from the verified JWT, never from IDs in the 
 - Managers awaiting approval (`PENDING_APPROVAL` / `REJECTED`) have no manager rights until an admin approves them.
 - Uploaded ID documents can only be viewed by admins.
 - Only the frontend origins in `app.cors.allowed-origins` may call the API from a browser (defaults: Live Server on ports 5500/5501).
+
+### Accounts and passwords
+
+- Sign in with your **email or username**. The username is optional at registration and can be set later under *Edit Profile*.
+- Passwords need **at least 8 characters, with both letters and numbers** (registration, change password and OTP reset).
+- **5 wrong passwords in a row lock the account for 10 minutes** (`423 Locked`). Resetting the password with the e-mailed OTP unlocks it immediately.
+- Player categories: Regular, Student, Senior, Family or Group (Group also records the group size). Discounts still require an admin-approved document.
+
+### Uploaded ID documents
+
+Verification documents are encrypted with **AES-256-GCM** and stored in the database (`verification_doc_contents`). Nothing readable is written to disk. The key is `app.uploads.encryption-key` in `secrets.yml`:
+
+```bash
+openssl rand -base64 32
+```
+
+Keep a copy of this key. Documents cannot be read without it. If it is not set, document uploads are switched off. Files are also checked by content, not just by extension: a renamed `.txt` is rejected.
+
+### Match disputes and notification retries
+
+- A match result whose scores contradict the chosen result (e.g. *WIN* with 2-5) is saved as **DISPUTED**. It earns no points, and the admin is notified. Admins resolve it under *Disputed Match Results*, and the points are then awarded.
+- Every notification e-mail is logged (`notification_deliveries`). A failed e-mail is retried up to 5 times with growing delays. Admins can see the log under *Notification E-mail Delivery*.
+- A court with upcoming (pending or confirmed) bookings cannot be deleted.
 
 ## Exception Handling
 

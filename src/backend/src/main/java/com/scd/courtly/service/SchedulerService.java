@@ -5,7 +5,6 @@ import com.scd.courtly.model.Player;
 import com.scd.courtly.repository.BookingRepository;
 import com.scd.courtly.repository.CourtRepository;
 import com.scd.courtly.repository.PlayerRepository;
-import com.scd.courtly.repository.VerificationDocRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ public class SchedulerService {
     private PlayerRepository playerRepository;
 
     @Autowired
-    private VerificationDocRepository verificationDocRepository;
+    private DocumentStorageService documentStorage;
 
     @Autowired
     private BookingRepository bookingRepository;
@@ -45,15 +44,15 @@ public class SchedulerService {
                 .findByDeletionStatusAndDeletionRequestedAtBefore("PENDING", cutoff);
 
         for (Player player : expired) {
-            verificationDocRepository.deleteAll(
-                    verificationDocRepository.findByPlayer_UserID(player.getUserID()));
+            documentStorage.deleteAllFor(player.getUserID());   // documents and their encrypted contents
             playerRepository.delete(player);
         }
     }
 
-    @Scheduled(fixedRate = 300_000)
+    // Runs every minute so a slot is released at most ~1 minute after the payment window ends
+    @Scheduled(fixedRate = 60_000)
     public void expireUnpaidBookings() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(60);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(BookingService.PAYMENT_WINDOW_MINUTES);
         List<Booking> stale = bookingRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff);
         for (Booking b : stale) {
             b.setStatus("CANCELLED");
@@ -65,7 +64,8 @@ public class SchedulerService {
                 "BOOKING_EXPIRED",
                 "Booking Expired",
                 "Your booking for " + b.getCourtName() + " on " + b.getBookingDate() +
-                " at " + b.getTimeSlot() + " has expired because payment was not completed within 60 minutes."
+                " at " + b.getTimeSlot() + " has expired because payment was not completed within "
+                + BookingService.PAYMENT_WINDOW_MINUTES + " minutes."
             );
         }
     }
@@ -164,5 +164,11 @@ public class SchedulerService {
                 }
             } catch (Exception ignored) {}
         }
+    }
+
+    // Runs every 2 minutes — retries notification e-mails that could not be delivered (FR-43)
+    @Scheduled(fixedDelay = 120_000)
+    public void retryNotificationEmails() {
+        notificationService.retryQueuedDeliveries();
     }
 }

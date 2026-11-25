@@ -455,6 +455,36 @@
             </div>
         </div>
 
+        <!-- Disputed Match Results (FR-38) -->
+        <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-700 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">⚖️ Disputed Match Results</h2>
+                    <p class="text-slate-400 text-sm mt-0.5">Submitted scores that contradict the reported result. Set the final result to award ranking points.</p>
+                </div>
+                <button onclick="disputesController.load()"
+                    class="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <span>↺</span> Refresh
+                </button>
+            </div>
+            <div id="disputesBody" class="p-6 text-sm text-slate-500 animate-pulse">Loading disputed results…</div>
+        </div>
+
+        <!-- Notification e-mail delivery (FR-43) -->
+        <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-700 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">📨 Notification E-mail Delivery</h2>
+                    <p class="text-slate-400 text-sm mt-0.5">Every notification e-mail is logged. Failed ones are retried automatically up to 5 times.</p>
+                </div>
+                <button onclick="deliveryLogController.load()"
+                    class="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <span>↺</span> Refresh
+                </button>
+            </div>
+            <div id="deliveryLogBody" class="p-6 text-sm text-slate-500 animate-pulse">Loading delivery log…</div>
+        </div>
+
         <!-- Account Deletion Requests -->
         <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
             <div class="px-6 py-5 border-b border-slate-700 flex justify-between items-center">

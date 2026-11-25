@@ -33,7 +33,10 @@ public class EmailService {
         Map.entry("BOOKING_EXPIRED",   new String[]{"#f97316", "⏰"}),
         Map.entry("SLOT_STARTING",     new String[]{"#a855f7", "🔔"}),
         Map.entry("LOW_RATING",        new String[]{"#eab308", "⭐"}),
-        Map.entry("DELETION_REQUEST",  new String[]{"#ef4444", "🗑️"})
+        Map.entry("DELETION_REQUEST",  new String[]{"#ef4444", "🗑️"}),
+        Map.entry("MATCH_DISPUTED",    new String[]{"#f97316", "⚖️"}),
+        Map.entry("MATCH_RESOLVED",    new String[]{"#10b981", "⚖️"}),
+        Map.entry("PAYMENT_REFUNDED",  new String[]{"#0ea5e9", "💸"})
     );
 
     /**

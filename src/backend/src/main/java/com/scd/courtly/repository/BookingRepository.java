@@ -22,6 +22,10 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     List<Booking> findByPlayerIDAndBookingDateAndStatusNot(
             String playerID, String bookingDate, String status);
 
+    // FR-34: active future bookings that block removing a court
+    long countByCourtIDAndStatusInAndBookingDateGreaterThanEqual(
+            String courtID, Collection<String> statuses, String date);
+
     long countByPlayerIDAndStatusIn(String playerID, Collection<String> statuses);
 
     List<Booking> findByStatusAndCreatedAtBefore(String status, LocalDateTime cutoff);

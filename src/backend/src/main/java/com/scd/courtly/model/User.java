@@ -19,6 +19,9 @@ public abstract class User {
 
     protected String name;
     protected String email;
+    // Optional sign-in name (FR-1, FR-5). Stored in lower case; unique when set.
+    @Column(unique = true, length = 30)
+    protected String username;
     protected String passwordHash;
     protected String role;          // "PLAYER" or "MANAGER"
     protected String accountStatus;
@@ -34,6 +37,11 @@ public abstract class User {
     protected String authProvider;
     // Stable account id issued by the OAuth2 provider (Google "sub", GitHub "id")
     protected String providerId;
+
+    // Account lockout (NFR 2.1.2): consecutive wrong passwords and the lock expiry.
+    // Wrapper types because rows created before these columns existed hold NULL.
+    protected Integer failedLoginAttempts;
+    protected LocalDateTime lockedUntil;
 
     @Column(updatable = false)
     protected LocalDateTime createdAt;

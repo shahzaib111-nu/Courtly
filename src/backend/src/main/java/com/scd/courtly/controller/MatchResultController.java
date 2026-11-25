@@ -3,6 +3,7 @@ package com.scd.courtly.controller;
 import com.scd.courtly.model.MatchResult;
 import com.scd.courtly.security.AccessGuard;
 import com.scd.courtly.service.MatchResultService;
+import com.scd.courtly.dto.request.ResolveMatchRequest;
 import com.scd.courtly.dto.request.SubmitMatchRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,21 @@ public class MatchResultController {
     @GetMapping("/check/{bookingID}")
     public ResponseEntity<?> check(@PathVariable String bookingID) {
         return ResponseEntity.ok(Map.of("submitted", matchResultService.isResultSubmitted(bookingID)));
+    }
+
+    /** GET /api/matches/disputed — results waiting for an admin decision (FR-38) */
+    @GetMapping("/disputed")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<MatchResult> disputed() {
+        return matchResultService.getDisputed();
+    }
+
+    /** POST /api/matches/{matchID}/resolve — admin sets the final score and result */
+    @PostMapping("/{matchID}/resolve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MatchResult resolve(@PathVariable String matchID, @Valid @RequestBody ResolveMatchRequest request) {
+        return matchResultService.resolveDispute(matchID, request.playerScore(), request.opponentScore(),
+                request.result());
     }
 
     /** GET /api/matches/rankings?sportType=&dateFrom=&dateTo= — admin report */

@@ -55,7 +55,7 @@ class BookingServiceTest {
     void setUp() {
         // Real CourtService: slot generation is pure logic and part of what we test.
         service = new BookingService(bookingRepository, courtRepository,
-            new CourtService(courtRepository), notificationService, playerRepository);
+            new CourtService(courtRepository, bookingRepository), notificationService, playerRepository);
         court = Fixtures.court(COURT);
         when(courtRepository.findById(COURT)).thenReturn(Optional.of(court));
         when(courtRepository.findByIdForUpdate(COURT)).thenReturn(Optional.of(court));

@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -253,6 +254,74 @@ class PaymentControllerTest extends IntegrationTest {
         void unpaid() throws Exception {
             mockMvc.perform(get("/api/payments/booking/{id}", booking.getBookingID()).header("Authorization", tokenFor(player)))
                 .andExpect(status().isNotFound());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("10-minute payment window (NFR 3.2, FR-21)")
+    class PaymentWindow {
+
+        @Test
+        @DisplayName("checkout tells the browser when the slot will be released")
+        void reportsDeadline() throws Exception {
+            String body = start(tokenFor(player), booking.getBookingID())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+            LocalDateTime deadline = LocalDateTime.parse(objectMapper.readTree(body).get("paymentDeadline").asText());
+            assertThat(deadline).isEqualTo(booking.getCreatedAt().plusMinutes(10).withNano(0));
+        }
+
+        @Test
+        @DisplayName("after 10 minutes the booking can no longer be paid → 409")
+        void windowEnded() throws Exception {
+            booking.setCreatedAt(LocalDateTime.now().minusMinutes(11));
+            bookingRepository.saveAndFlush(booking);
+
+            start(tokenFor(player), booking.getBookingID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("10-minute payment window")));
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("GET /player/{playerID} (payment history, FR-26)")
+    class History {
+
+        @Test
+        @DisplayName("lists the player's payments with their receipt details")
+        void listsPayments() throws Exception {
+            stripeReports("succeeded", booking.getBookingID(), 100_000L);
+            confirm(tokenFor(player)).andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/payments/player/{id}", player.getUserID()).header("Authorization", tokenFor(player)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].bookingID").value(booking.getBookingID()))
+                .andExpect(jsonPath("$[0].receiptNo", org.hamcrest.Matchers.startsWith("CRT-")))
+                .andExpect(jsonPath("$[0].amountPaid").value(1000.0))
+                .andExpect(jsonPath("$[0].maskedCard").value("•••• 4242"))
+                .andExpect(jsonPath("$[0].status").value("SUCCESS"));
+        }
+
+        @Test
+        @DisplayName("a player with no payments gets an empty list")
+        void empty() throws Exception {
+            mockMvc.perform(get("/api/payments/player/{id}", player.getUserID()).header("Authorization", tokenFor(player)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+        }
+
+        @Test
+        @DisplayName("NFR 2.3.2: only the player and admins can see it")
+        void access() throws Exception {
+            mockMvc.perform(get("/api/payments/player/{id}", player.getUserID()).header("Authorization", playerToken()))
+                .andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/payments/player/{id}", player.getUserID()).header("Authorization", adminToken()))
+                .andExpect(status().isOk());
+            mockMvc.perform(get("/api/payments/player/{id}", player.getUserID()))
+                .andExpect(status().isUnauthorized());
         }
     }
 }

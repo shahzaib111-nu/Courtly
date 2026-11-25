@@ -171,6 +171,29 @@ function clearFormError(formType) {
 // ============================================================
 // CLIENT-SIDE VALIDATION
 // ============================================================
+
+/** NFR 2.1.1: at least 8 characters with letters and numbers. Returns an error message or ''. */
+function passwordPolicyError(pass) {
+    if (!pass || pass.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Za-z]/.test(pass) || !/\d/.test(pass)) return 'Password must contain both letters and numbers.';
+    return '';
+}
+
+/** Shows the group-size field only for the Group category. */
+function toggleGroupSize(selectId, rowId) {
+    const sel = document.getElementById(selectId);
+    const row = document.getElementById(rowId);
+    if (sel && row) row.classList.toggle('hidden', sel.value !== 'GROUP');
+}
+
+/** Best human-readable message from an API error body (ApiError or legacy {error}). */
+function apiErrorText(data, fallback) {
+    if (!data) return fallback;
+    if (typeof data === 'string') return data || fallback;
+    if (data.fieldErrors && Object.keys(data.fieldErrors).length) return Object.values(data.fieldErrors).join(' ');
+    return data.message || data.error || fallback;
+}
+
 function validateLoginForm() {
     const email = document.getElementById('loginEmail').value.trim();
     const pass  = document.getElementById('loginPass').value;
@@ -180,14 +203,11 @@ function validateLoginForm() {
     clearFieldError('loginPass');
 
     if (!email) {
-        showFieldError('loginEmail', 'Email address is required.');
+        showFieldError('loginEmail', 'Email or username is required.');
         valid = false;
     }
     if (!pass) {
         showFieldError('loginPass', 'Password is required.');
-        valid = false;
-    } else if (pass.length < 8) {
-        showFieldError('loginPass', 'Password must be at least 8 characters.');
         valid = false;
     }
     return valid;
@@ -201,7 +221,21 @@ function validateRegisterForm() {
     const pass  = document.getElementById('regPass').value;
     let valid = true;
 
-    ['regName', 'regEmail', 'regPhone', 'regDob', 'regPass'].forEach(clearFieldError);
+    const username  = (document.getElementById('regUsername')?.value || '').trim();
+    const category  = document.getElementById('regCategory')?.value || 'REGULAR';
+    const groupSize = document.getElementById('regGroupSize')?.value || '';
+    const isManager = uiController._role === 'manager';
+
+    ['regName', 'regEmail', 'regUsername', 'regPhone', 'regDob', 'regPass', 'regGroupSize'].forEach(clearFieldError);
+
+    if (username && !/^[A-Za-z0-9._]{3,30}$/.test(username)) {
+        showFieldError('regUsername', 'Use 3-30 letters, numbers, dots or underscores.');
+        valid = false;
+    }
+    if (!isManager && category === 'GROUP' && !(Number(groupSize) >= 2 && Number(groupSize) <= 50)) {
+        showFieldError('regGroupSize', 'Enter the number of people in your group (2-50).');
+        valid = false;
+    }
 
     if (!name || !/^[a-zA-Z\s]{2,}$/.test(name)) {
         showFieldError('regName', 'Enter your full name using letters only (min 2 characters).');
@@ -237,8 +271,9 @@ function validateRegisterForm() {
         }
     }
 
-    if (pass.length < 8) {
-        showFieldError('regPass', 'Password must be at least 8 characters.');
+    const passError = passwordPolicyError(pass);
+    if (passError) {
+        showFieldError('regPass', passError);
         valid = false;
     }
 
@@ -257,6 +292,11 @@ const uiController = {
     setRole(role) {
         this._role = role;
         localStorage.setItem('pendingRole', role);
+
+        // Player categories (FR-9) do not apply to arena managers
+        document.getElementById('regCategoryRow')?.classList.toggle('hidden', role === 'manager');
+        if (role === 'manager') document.getElementById('regGroupSizeRow')?.classList.add('hidden');
+        else toggleGroupSize('regCategory', 'regGroupSizeRow');
 
         const playerBtn  = document.getElementById('role-player');
         const managerBtn = document.getElementById('role-manager');
@@ -365,7 +405,10 @@ const uiController = {
                     throw new Error(`Cannot connect to server. Make sure the backend is running at ${API_BASE}.`);
                 }
                 if (!res.ok) {
-                    if (data.message === 'ACCOUNT_PENDING_DELETION') {
+                    if (res.status === 423) {
+                        // NFR 2.1.2: locked after 5 wrong passwords
+                        showFormError('login', data.message || 'Too many failed attempts. Try again in 10 minutes.');
+                    } else if (data.message === 'ACCOUNT_PENDING_DELETION') {
                         showFormError('login', 'This account is scheduled for deletion. Login is blocked. Contact admin.playfair@gmail.com to cancel.');
                     } else if (data.message === 'EMAIL_NOT_FOUND') {
                         showFormError('login', 'No account found. Please register first.');
@@ -377,7 +420,8 @@ const uiController = {
                     btn.textContent = original; btn.disabled = false;
                     return;
                 }
-                localStorage.setItem('playerEmail',    email);
+                // The user may have typed a username: store the account's real e-mail
+                localStorage.setItem('playerEmail',    data.email        || email);
                 localStorage.setItem('playerID',       data.playerID     || '');
                 localStorage.setItem('playerName',     data.name         || '');
                 localStorage.setItem('accountStatus',  data.accountStatus || 'Active');
@@ -395,7 +439,14 @@ const uiController = {
                     phone:        document.getElementById('regPhone').value.trim(),
                     dateOfBirth:  document.getElementById('regDob').value,
                     role:         this._role === 'manager' ? 'MANAGER' : 'PLAYER',
+                    username:     (document.getElementById('regUsername')?.value || '').trim(),
                 };
+                if (this._role !== 'manager') {
+                    userData.category = document.getElementById('regCategory')?.value || 'REGULAR';
+                    if (userData.category === 'GROUP') {
+                        userData.groupSize = Number(document.getElementById('regGroupSize').value);
+                    }
+                }
                 let res, data;
                 try {
                     res  = await fetch(`${AUTH_API}/register`, {
@@ -408,7 +459,7 @@ const uiController = {
                     throw new Error(`Cannot connect to server. Make sure the backend is running at ${API_BASE}.`);
                 }
                 if (!res.ok) {
-                    showFormError('register', (typeof data === 'string' ? data : data.error) || 'Registration failed. Please try again.');
+                    showFormError('register', apiErrorText(data, 'Registration failed. Please try again.'));
                     btn.textContent = original; btn.disabled = false;
                     return;
                 }
@@ -417,6 +468,23 @@ const uiController = {
                 localStorage.setItem('playerName',   data.name   || userData.name);
                 localStorage.setItem('accountStatus', data.accountStatus || (this._role === 'manager' ? 'PENDING_APPROVAL' : 'Active'));
                 finalRole = this._role === 'manager' ? 'manager' : 'player';
+
+                // Registration does not return a token: sign in right away so the dashboard works (FR-6)
+                localStorage.removeItem('jwtToken');   // never keep a previous user's session
+                try {
+                    const loginRes  = await fetch(`${AUTH_API}/login?email=${encodeURIComponent(userData.email)}&pass=${encodeURIComponent(userData.passwordHash)}&role=${userData.role}`, { method: 'POST' });
+                    const loginData = await loginRes.json();
+                    if (loginRes.ok && loginData.token) {
+                        localStorage.setItem('jwtToken', loginData.token);
+                        localStorage.setItem('jwtExpiresIn', String(loginData.expiresIn || 0));
+                    }
+                } catch { /* the user can still sign in manually */ }
+                if (!localStorage.getItem('jwtToken')) {
+                    btn.textContent = original; btn.disabled = false;
+                    this.render('login');
+                    showFormError('login', 'Account created. Please sign in.');
+                    return;
+                }
             }
 
             localStorage.setItem('userRole', finalRole);
@@ -564,8 +632,8 @@ const uiController = {
         clearFieldError('resetNewPass');
         clearFieldError('resetConfirmPass');
 
-        if (newPass.length < 8) {
-            showFieldError('resetNewPass', 'Password must be at least 8 characters.');
+        if (passwordPolicyError(newPass)) {
+            showFieldError('resetNewPass', passwordPolicyError(newPass));
             return;
         }
         if (newPass !== confirmPass) {
@@ -656,7 +724,7 @@ const changePasswordController = {
                     <div>
                         <label class="text-xs text-slate-400 mb-1.5 block font-medium">New Password</label>
                         <div class="relative">
-                            <input id="cpNewPass" type="password" placeholder="Minimum 8 characters"
+                            <input id="cpNewPass" type="password" placeholder="8+ characters, letters and numbers"
                                 class="w-full bg-slate-900/60 border border-slate-600 rounded-xl px-4 py-3 pr-11 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                             <button type="button" tabindex="-1" onclick="togglePw('cpNewPass', this)"
                                 class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-200 transition">
@@ -732,8 +800,8 @@ const changePasswordController = {
             errText.textContent = 'Current password is required.';
             errBanner.classList.remove('hidden'); return;
         }
-        if (newPass.length < 8) {
-            errText.textContent = 'New password must be at least 8 characters.';
+        if (passwordPolicyError(newPass)) {
+            errText.textContent = passwordPolicyError(newPass);
             errBanner.classList.remove('hidden'); return;
         }
         if (newPass !== confirmPass) {
@@ -946,7 +1014,7 @@ const dashboardController = {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Booking failed');
 
-            this._showToast('Booked! You have 60 minutes to complete payment from My Bookings.');
+            this._showToast('Booked! You have 10 minutes to complete payment from My Bookings.');
             this.loadMyBookings();
 
             // Reset Quick Book panel
@@ -1325,12 +1393,14 @@ const matchController = {
                 })
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'Failed to submit result');
+            if (!res.ok) throw new Error(apiErrorText(data, 'Failed to submit result'));
 
             this.submittedBookingIDs.add(this._currentBookingID);
             this.closeModal();
             dashboardController.renderBookings(dashboardController.allBookings);
-            dashboardController._showToast('Match result submitted! Points updated on leaderboard.');
+            dashboardController._showToast(data.status === 'DISPUTED'
+                ? 'Result saved, but the scores do not match the result you chose, so it is marked as disputed. An admin will review it.'
+                : 'Match result submitted! Points updated on leaderboard.');
             this.loadLeaderboard();
         } catch (e) {
             this._showError(e.message);

@@ -3,8 +3,11 @@ package com.scd.courtly.dto.response;
 public record ProfileResponse(
     String name,
     String email,
+    String username,
     String phone,
     String dateOfBirth,
+    String category,       // REGULAR, STUDENT, SENIOR, FAMILY or GROUP
+    Integer groupSize,
     String discountTier,
     String accountStatus,
     String deletionStatus,

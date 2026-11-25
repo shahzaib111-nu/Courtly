@@ -31,6 +31,9 @@ public class AdminController {
     private VerificationDocRepository verificationDocRepository;
 
     @Autowired
+    private com.scd.courtly.service.DocumentStorageService documentStorage;
+
+    @Autowired
     private PlayerRepository playerRepository;
 
     @Autowired
@@ -169,8 +172,7 @@ public class AdminController {
 
         switch (action) {
             case "DELETE_NOW" -> {
-                verificationDocRepository.deleteAll(
-                        verificationDocRepository.findByPlayer_UserID(player.getUserID()));
+                documentStorage.deleteAllFor(player.getUserID());   // documents and their encrypted contents
                 playerRepository.delete(player);
             }
             case "ARCHIVE" -> {

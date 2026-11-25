@@ -1312,6 +1312,129 @@ const ADMIN_API = `${API_BASE}/api/admin`;
         adminController.loadArchivedAccounts();
         adminController.initReportPanel();
 
+        // ── Disputed match results (FR-38) ───────────────────────────────────
+        const _esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+        const disputesController = {
+            async load() {
+                const box = document.getElementById('disputesBody');
+                if (!box) return;
+                box.className = 'p-6 text-sm';
+                try {
+                    const res = await fetch(`${API_BASE}/api/matches/disputed`);
+                    if (!res.ok) throw new Error();
+                    const list = await res.json();
+                    if (!list.length) {
+                        box.innerHTML = '<div class="text-center py-6"><p class="text-4xl mb-3">✅</p><p class="text-slate-300 font-medium">No disputed results</p></div>';
+                        return;
+                    }
+                    box.className = 'overflow-x-auto';
+                    box.innerHTML = `<table class="w-full text-sm">
+                        <thead><tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <th class="px-6 py-3">Player</th><th class="px-6 py-3">Match</th><th class="px-6 py-3">Submitted</th>
+                            <th class="px-6 py-3">Problem</th><th class="px-6 py-3">Final result</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-slate-700/50">
+                        ${list.map(m => {
+                            const id = _esc(m.matchID);
+                            return `<tr id="dispute-${id}" class="hover:bg-slate-700/20">
+                                <td class="px-6 py-4 text-slate-200">${_esc(m.playerName)}<br><span class="text-xs text-slate-500">vs ${_esc(m.opponentName)}</span></td>
+                                <td class="px-6 py-4 text-slate-300 text-xs">${_esc(m.courtName)}<br>${_esc(m.bookingDate)} · ${_esc(m.timeSlot)}</td>
+                                <td class="px-6 py-4 text-slate-300">${_esc(m.result)} ${_esc(m.playerScore)}-${_esc(m.opponentScore)}</td>
+                                <td class="px-6 py-4 text-amber-300 text-xs max-w-xs">${_esc(m.disputeReason)}</td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-1.5">
+                                        <input id="ps-${id}" type="number" min="0" max="999" value="${_esc(m.playerScore)}" class="w-14 bg-slate-900/60 border border-slate-600 rounded-md px-2 py-1 text-white text-xs text-center" title="Player score">
+                                        <span class="text-slate-500">-</span>
+                                        <input id="os-${id}" type="number" min="0" max="999" value="${_esc(m.opponentScore)}" class="w-14 bg-slate-900/60 border border-slate-600 rounded-md px-2 py-1 text-white text-xs text-center" title="Opponent score">
+                                        <select id="res-${id}" class="bg-slate-900/60 border border-slate-600 rounded-md px-1 py-1 text-white text-xs">
+                                            <option>WIN</option><option>DRAW</option><option>LOSS</option>
+                                        </select>
+                                        <button onclick="disputesController.resolve('${id}')"
+                                            class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">Resolve</button>
+                                    </div>
+                                    <p id="err-${id}" class="hidden text-xs text-rose-400 mt-1"></p>
+                                </td>
+                            </tr>`;
+                        }).join('')}
+                        </tbody></table>`;
+                } catch {
+                    box.innerHTML = '<p class="text-rose-400">Failed to load disputed results.</p>';
+                }
+            },
+
+            async resolve(matchID) {
+                const err = document.getElementById(`err-${matchID}`);
+                err.classList.add('hidden');
+                const body = {
+                    playerScore:   Number(document.getElementById(`ps-${matchID}`).value),
+                    opponentScore: Number(document.getElementById(`os-${matchID}`).value),
+                    result:        document.getElementById(`res-${matchID}`).value
+                };
+                try {
+                    const res = await fetch(`${API_BASE}/api/matches/${encodeURIComponent(matchID)}/resolve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        err.textContent = apiErrorText(data, 'Could not resolve this result.');
+                        err.classList.remove('hidden');
+                        return;
+                    }
+                    showPopup(`Result set to ${data.result} ${data.playerScore}-${data.opponentScore}. ${data.pointsEarned} ranking point(s) awarded.`);
+                    this.load();
+                } catch {
+                    err.textContent = 'Cannot connect to server.';
+                    err.classList.remove('hidden');
+                }
+            }
+        };
+
+        // ── Notification e-mail delivery log (FR-43) ─────────────────────────
+        const deliveryLogController = {
+            async load() {
+                const box = document.getElementById('deliveryLogBody');
+                if (!box) return;
+                box.className = 'p-6 text-sm';
+                try {
+                    const res = await fetch(`${API_BASE}/api/notifications/delivery-log?limit=15`);
+                    if (!res.ok) throw new Error();
+                    const { counts, entries } = await res.json();
+                    const badge = { SENT: 'bg-emerald-900/50 text-emerald-300', QUEUED: 'bg-amber-900/50 text-amber-300', FAILED: 'bg-rose-900/50 text-rose-300' };
+                    const tile = (label, n, cls) => `<div class="flex-1 bg-slate-900/40 border border-slate-700 rounded-xl p-4 text-center">
+                        <p class="text-2xl font-bold ${cls}">${n ?? 0}</p><p class="text-xs text-slate-400 mt-1">${label}</p></div>`;
+                    box.innerHTML = `
+                        <div class="flex gap-3 mb-5">
+                            ${tile('Sent', counts.SENT, 'text-emerald-300')}
+                            ${tile('Queued for retry', counts.QUEUED, 'text-amber-300')}
+                            ${tile('Failed (gave up)', counts.FAILED, 'text-rose-300')}
+                        </div>
+                        ${entries.length ? `<div class="overflow-x-auto"><table class="w-full text-xs">
+                            <thead><tr class="text-left text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                <th class="py-2 pr-4">When</th><th class="py-2 pr-4">Recipient</th><th class="py-2 pr-4">Notification</th>
+                                <th class="py-2 pr-4">Status</th><th class="py-2 pr-4">Attempts</th><th class="py-2">Last error</th>
+                            </tr></thead>
+                            <tbody class="divide-y divide-slate-700/50">
+                            ${entries.map(e => `<tr>
+                                <td class="py-2 pr-4 text-slate-400 whitespace-nowrap">${e.createdAt ? new Date(e.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                                <td class="py-2 pr-4 text-slate-300">${_esc(e.recipientEmail || e.userId)}</td>
+                                <td class="py-2 pr-4 text-slate-200">${_esc(e.title)}</td>
+                                <td class="py-2 pr-4"><span class="px-2 py-0.5 rounded-full font-medium ${badge[e.status] || ''}">${_esc(e.status)}</span></td>
+                                <td class="py-2 pr-4 text-slate-300">${_esc(e.attempts)}</td>
+                                <td class="py-2 text-slate-500">${_esc(e.lastError || '')}</td>
+                            </tr>`).join('')}
+                            </tbody></table></div>` : '<p class="text-slate-400">No notifications have been sent yet.</p>'}`;
+                } catch {
+                    box.innerHTML = '<p class="text-rose-400">Failed to load the delivery log.</p>';
+                }
+            }
+        };
+
+        disputesController.load();
+        deliveryLogController.load();
+
 
 
         // ── Facility Feedback Report Controller ──────────────────────────────

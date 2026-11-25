@@ -64,6 +64,10 @@ public class PaymentService {
             throw new ConflictException("This booking was " + booking.getStatus().toLowerCase()
                 + " and can no longer be paid. Please book the slot again.");
         }
+        if (java.time.LocalDateTime.now().isAfter(BookingService.paymentDeadline(booking))) {
+            throw new ConflictException("The " + BookingService.PAYMENT_WINDOW_MINUTES
+                + "-minute payment window for this booking has ended. Please book the slot again.");
+        }
         long amountMinor = toMinor(booking.getTotalCost());
         if (amountMinor <= 0) {
             throw new BusinessException("This booking has nothing to pay.");
@@ -74,7 +78,8 @@ public class PaymentService {
         return new CheckoutResponse(
             booking.getBookingID(), intent.id(), intent.clientSecret(), publishableKey,
             booking.getCourtName(), booking.getSportType(), booking.getBookingDate(), booking.getTimeSlot(),
-            booking.isPeakHour(), subtotal(booking), booking.getDiscountApplied(), booking.getTotalCost(), "PKR");
+            booking.isPeakHour(), subtotal(booking), booking.getDiscountApplied(), booking.getTotalCost(), "PKR",
+            BookingService.paymentDeadline(booking).withNano(0).toString());
     }
 
     // ── 2. Confirm after Stripe reports success ──────────────────────────────
@@ -132,6 +137,20 @@ public class PaymentService {
         Payment payment = paymentRepository.findByBookingID(bookingID)
             .orElseThrow(() -> new NotFoundException("No payment found for this booking"));
         return receipt(payment, booking);
+    }
+
+    /** FR-26: all of a player's payments, newest first, each with its receipt details. */
+    public java.util.List<PaymentReceiptResponse> getHistory(String playerID) {
+        return paymentRepository.findByPlayerIDOrderByTransactionDateDesc(playerID).stream()
+            .map(p -> bookingRepository.findById(p.getBookingID())
+                .map(b -> receipt(p, b))
+                .orElseGet(() -> new PaymentReceiptResponse(
+                    p.getReceiptNo(), p.getPaymentID(), p.getStatus(), p.getBookingID(),
+                    null, "Removed court", null, null, false, p.getAmount(), 0, p.getAmount(),
+                    p.getCardBrand(), p.getMaskedCard() != null ? "•••• " + p.getMaskedCard() : null,
+                    p.getStripeTransactionRef(),
+                    p.getTransactionDate() != null ? p.getTransactionDate().toString() : null)))
+            .toList();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
