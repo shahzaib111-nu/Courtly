@@ -60,8 +60,10 @@ async function loadVerificationStatus() {
                 document.getElementById('profileAuthProvider').textContent = oauthModel.signInMethodLabel(p.authProvider);
                 document.getElementById('profilePhone').textContent = p.phone     || '—';
                 document.getElementById('profileUsername').textContent = p.username || '—';
-                document.getElementById('profileCategory').textContent =
-                    profileController.categoryLabel(p.category) + (p.category === 'GROUP' && p.groupSize ? ` (${p.groupSize} people)` : '');
+                const catDetail = p.category === 'GROUP' && p.groupSize ? ` (${p.groupSize} people${p.leadMemberName ? ', lead: ' + p.leadMemberName : ''})`
+                    : p.category === 'FAMILY' && p.familySize ? ` (${p.familySize} members)`
+                    : p.category === 'STUDENT' && p.studentId ? ` (ID ${p.studentId})` : '';
+                document.getElementById('profileCategory').textContent = profileController.categoryLabel(p.category) + catDetail;
                 profileController.current = p;
                 document.getElementById('profileDob').textContent   = p.dateOfBirth
                     ? new Date(p.dateOfBirth).toLocaleDateString('en-PK', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -109,10 +111,23 @@ async function loadVerificationStatus() {
                 document.getElementById('editDob').value       = p.dateOfBirth || '';
                 document.getElementById('editCategory').value  = p.category || 'REGULAR';
                 document.getElementById('editGroupSize').value = p.groupSize || '';
-                toggleGroupSize('editCategory', 'editGroupSizeRow');
+                document.getElementById('editFamilySize').value = p.familySize || '';
+                document.getElementById('editLeadMember').value = p.leadMemberName || '';
+                document.getElementById('editStudentId').value  = p.studentId || '';
+                document.getElementById('editUniEmail').value   = p.universityEmail || '';
+                this.toggleCategory();
                 document.getElementById('profileError').classList.add('hidden');
                 const modal = document.getElementById('profileModal');
                 modal.classList.remove('hidden'); modal.classList.add('flex');
+            },
+
+            /** Shows only the detail fields that belong to the chosen category. */
+            toggleCategory() {
+                const c = document.getElementById('editCategory').value;
+                document.getElementById('editGroupSizeRow').classList.toggle('hidden', c !== 'GROUP');
+                document.getElementById('editGroupLeadRow').classList.toggle('hidden', c !== 'GROUP');
+                document.getElementById('editFamilyRow').classList.toggle('hidden', c !== 'FAMILY');
+                document.getElementById('editStudentRow').classList.toggle('hidden', c !== 'STUDENT');
             },
 
             close() {
@@ -134,7 +149,22 @@ async function loadVerificationStatus() {
                     dateOfBirth: document.getElementById('editDob').value,
                     category:    document.getElementById('editCategory').value,
                 };
-                if (body.category === 'GROUP') body.groupSize = Number(document.getElementById('editGroupSize').value);
+                if (body.category === 'GROUP') {
+                    body.groupSize      = Number(document.getElementById('editGroupSize').value);
+                    body.leadMemberName = document.getElementById('editLeadMember').value.trim();
+                }
+                if (body.category === 'FAMILY') {
+                    const fs = document.getElementById('editFamilySize').value;
+                    if (fs) body.familySize = Number(fs);
+                    if (fs && !(body.familySize >= 2 && body.familySize <= 20))
+                        return this._error('Family members must be between 2 and 20.');
+                }
+                if (body.category === 'STUDENT') {
+                    body.studentId       = document.getElementById('editStudentId').value.trim();
+                    body.universityEmail = document.getElementById('editUniEmail').value.trim();
+                    if (body.universityEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.universityEmail))
+                        return this._error('Enter a valid university e-mail address.');
+                }
 
                 if (body.name.length < 2)  return this._error('Enter your full name.');
                 if (body.username && !/^[A-Za-z0-9._]{3,30}$/.test(body.username))

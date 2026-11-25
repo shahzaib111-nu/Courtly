@@ -36,6 +36,8 @@ class FacilityRatingServiceTest {
     @Mock FacilityRatingRepository ratingRepository;
     @Mock BookingRepository bookingRepository;
     @Mock NotificationService notificationService;
+    @Mock com.scd.courtly.repository.CourtRepository courtRepository;
+    @Mock com.scd.courtly.repository.FacilityRepository facilityRepository;
     @InjectMocks FacilityRatingService service;
 
     private Booking booking;
@@ -60,6 +62,23 @@ class FacilityRatingServiceTest {
             assertThat(r.getRatingScore()).isEqualTo(4);
             assertThat(r.getFeedbackText()).isEqualTo("Great court");
             verifyNoInteractions(notificationService);
+        }
+
+        @Test
+        @DisplayName("the rating is linked to the court's facility (ERD FACILITY_FEEDBACK.facility_id)")
+        void linkedToFacility() {
+            com.scd.courtly.model.Court court = Fixtures.court("C1");
+            court.setFacilityId("FAC-1");
+            com.scd.courtly.model.Facility facility = new com.scd.courtly.model.Facility();
+            facility.setFacilityID("FAC-1");
+            facility.setName("Gulberg Sports Arena");
+            when(courtRepository.findById("C1")).thenReturn(java.util.Optional.of(court));
+            when(facilityRepository.findById("FAC-1")).thenReturn(java.util.Optional.of(facility));
+
+            FacilityRating r = service.submitRating("B1", "P1", 4, null);
+
+            assertThat(r.getFacilityId()).isEqualTo("FAC-1");
+            assertThat(r.getFacilityName()).isEqualTo("Gulberg Sports Arena");
         }
 
         @Test

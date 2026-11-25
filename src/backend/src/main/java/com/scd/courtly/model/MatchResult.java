@@ -32,6 +32,10 @@ public class MatchResult {
     private String timeSlot;
 
     private String opponentName;
+    // ERD MATCH_RESULT.opponent_id / winner_id: set when the opponent is a registered player
+    // (entered by username or e-mail). winnerID is null for a draw or an unregistered winner.
+    private String opponentID;
+    private String winnerID;
     private int    playerScore;
     private int    opponentScore;
 

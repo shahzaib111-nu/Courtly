@@ -18,6 +18,8 @@ public class FacilityRatingService {
     private final FacilityRatingRepository ratingRepository;
     private final BookingRepository        bookingRepository;
     private final NotificationService      notificationService;
+    private final com.scd.courtly.repository.CourtRepository    courtRepository;
+    private final com.scd.courtly.repository.FacilityRepository facilityRepository;
 
     public FacilityRating submitRating(String bookingID, String playerID,
                                        int ratingScore, String feedbackText) {
@@ -54,6 +56,14 @@ public class FacilityRatingService {
         rating.setPlayerID(playerID);
         rating.setCourtID(booking.getCourtID());
         rating.setCourtName(booking.getCourtName());
+        // ERD FACILITY_FEEDBACK.facility_id: the rating is about the court's facility
+        courtRepository.findById(booking.getCourtID())
+                .map(c -> c.getFacilityId())
+                .flatMap(facilityRepository::findById)
+                .ifPresent(f -> {
+                    rating.setFacilityId(f.getFacilityID());
+                    rating.setFacilityName(f.getName());
+                });
         rating.setSportType(booking.getSportType());
         rating.setBookingDate(booking.getBookingDate());
         rating.setRatingScore(ratingScore);

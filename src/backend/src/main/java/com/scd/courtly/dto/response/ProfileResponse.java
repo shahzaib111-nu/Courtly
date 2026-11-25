@@ -8,6 +8,10 @@ public record ProfileResponse(
     String dateOfBirth,
     String category,       // REGULAR, STUDENT, SENIOR, FAMILY or GROUP
     Integer groupSize,
+    String studentId,
+    String universityEmail,
+    Integer familySize,
+    String leadMemberName,
     String discountTier,
     String accountStatus,
     String deletionStatus,

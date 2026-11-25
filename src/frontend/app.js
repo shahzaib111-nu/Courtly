@@ -186,6 +186,11 @@ function toggleGroupSize(selectId, rowId) {
     if (sel && row) row.classList.toggle('hidden', sel.value !== 'GROUP');
 }
 
+/** Escapes text for safe use inside innerHTML. */
+function escapeHtml(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
 /** Best human-readable message from an API error body (ApiError or legacy {error}). */
 function apiErrorText(data, fallback) {
     if (!data) return fallback;
@@ -922,6 +927,7 @@ const dashboardController = {
             container.innerHTML = `<p class="text-amber-400 text-sm col-span-full">No available slots found. Try a different date or sport.</p>`;
             return;
         }
+        const facilityOf = await this._facilityByCourt();
 
         const _dow = new Date(date + 'T00:00:00').getDay();
         const _isWeekend = _dow === 0 || _dow === 6;
@@ -943,10 +949,26 @@ const dashboardController = {
                     ${_slotBadge}
                 </div>
                 <p class="text-sm text-slate-400 truncate">${slot.courtName || slot.courtID}</p>
+                ${facilityOf[slot.courtID] ? `<p class="text-xs text-slate-500 truncate" title="${escapeHtml(facilityOf[slot.courtID].location)}">🏢 ${escapeHtml(facilityOf[slot.courtID].name)}</p>` : ''}
                 <p class="text-sm font-semibold mt-2 ${_priceColor}">PKR ${slot.price.toLocaleString()}</p>`;
             card.onclick = () => this.selectSlot(slot.courtID, slot.timeSlot, date, slot.price, slot.isPeak, slot.courtName);
             container.appendChild(card);
         });
+    },
+
+    /** courtID → {name, location} of the facility that contains it (public lists, fetched once). */
+    async _facilityByCourt() {
+        if (this._facilityCache) return this._facilityCache;
+        const map = {};
+        try {
+            const [cRes, fRes] = await Promise.all([fetch(`${API_BASE}/api/courts`), fetch(`${API_BASE}/api/facilities`)]);
+            if (cRes.ok && fRes.ok) {
+                const facilities = Object.fromEntries((await fRes.json()).map(f => [f.facilityID, f]));
+                (await cRes.json()).forEach(c => { if (facilities[c.facilityId]) map[c.courtID] = facilities[c.facilityId]; });
+                this._facilityCache = map;
+            }
+        } catch { /* facility names are optional */ }
+        return map;
     },
 
     selectSlot(courtId, time, date, price, isPeak, courtName) {

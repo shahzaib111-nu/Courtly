@@ -37,6 +37,8 @@ public class NotificationDelivery {
     @Column(length = 600)
     private String message;
 
+    private String channel = "EMAIL"; // ERD NOTIFICATION.channel; in-app copies are the notifications table
+
     @Column(nullable = false)
     private String status;           // SENT, QUEUED or FAILED
     private int attempts;

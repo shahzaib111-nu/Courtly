@@ -60,6 +60,49 @@
 
     <main class="relative z-10 max-w-7xl mx-auto p-8 space-y-8 fade-in">
 
+        <!-- My Facility (class diagram: Facility, FR-32) -->
+        <div id="facilityCard" class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-6">
+            <div id="facilityView" class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs text-slate-500 uppercase tracking-widest mb-1">My Facility</p>
+                    <h2 id="facilityName" class="text-2xl font-bold text-white">Loading…</h2>
+                    <p id="facilityLocation" class="text-sm text-slate-400 mt-1"></p>
+                    <p class="text-sm text-slate-400 mt-1">🕒 <span id="facilityHours">—</span>
+                        <span id="facilityStatus" class="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold"></span></p>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="text-center"><p id="facilityRating" class="text-2xl font-bold text-amber-300">—</p><p class="text-xs text-slate-500">Avg rating</p></div>
+                    <button onclick="facilityInfoController.edit()"
+                        class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">✏️ Edit Facility</button>
+                </div>
+            </div>
+            <form id="facilityForm" class="hidden grid grid-cols-1 md:grid-cols-4 gap-3" onsubmit="event.preventDefault(); facilityInfoController.save();">
+                <div class="md:col-span-2">
+                    <label class="text-xs text-slate-400 mb-1 block">Facility name</label>
+                    <input id="facNameInput" type="text" maxlength="100" required class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-xs text-slate-400 mb-1 block">Location</label>
+                    <input id="facLocationInput" type="text" maxlength="200" required placeholder="Street, area, city" class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">Opens</label>
+                    <input id="facOpenInput" type="time" required class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">Closes</label>
+                    <input id="facCloseInput" type="time" required class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="md:col-span-2 flex items-end gap-2">
+                    <button type="button" onclick="facilityInfoController.cancel()"
+                        class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium">Cancel</button>
+                    <button id="facSaveBtn" type="submit"
+                        class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold">Save Facility</button>
+                </div>
+                <p id="facilityError" class="hidden md:col-span-4 text-sm text-red-400 bg-red-500/10 rounded-lg p-2.5"></p>
+            </form>
+        </div>
+
         <!-- Stats Row -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-5">

@@ -14,6 +14,10 @@ public class Player extends User {
     // Player category chosen at registration (FR-1, FR-9): REGULAR, STUDENT, SENIOR,
     // FAMILY or GROUP. Discounts still need an approved verification document.
     private String category;
-    // Number of people in the party, for the GROUP category
-    private Integer groupMemberCount;
+    // Category details (class diagram: Student, Family and Group players; ERD: PLAYER)
+    private String studentId;          // STUDENT
+    private String universityEmail;    // STUDENT
+    private Integer familySize;        // FAMILY
+    private Integer groupSize;         // GROUP: number of people in the party
+    private String leadMemberName;     // GROUP
 }

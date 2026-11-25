@@ -1,5 +1,15 @@
 const ADMIN_API = `${API_BASE}/api/admin`;
 
+/** Records a generated/exported report in the report history (SYSTEM_REPORT). Never blocks the UI. */
+function logReport(reportType, filters, exportFormat) {
+    fetch(`${ADMIN_API}/reports/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportType, filters: filters || {}, exportFormat })
+    }).then(() => { if (typeof reportHistoryController !== 'undefined') reportHistoryController.load(); })
+      .catch(() => {});
+}
+
         function closeAllReportPanels() {
             document.getElementById('reportDetails').classList.add('hidden');
             document.getElementById('panel-feedback').classList.add('hidden');
@@ -1298,6 +1308,10 @@ const ADMIN_API = `${API_BASE}/api/admin`;
                         USER_DEMOGRAPHICS: 'Courtly_DemographicsReport',
                     };
                     doc.save((_pdfNameMap[this.selectedReportType] || 'Courtly_Report') + '.pdf');
+                    logReport(this.selectedReportType, {
+                        startDate: document.getElementById('reportStartDate')?.value,
+                        endDate:   document.getElementById('reportEndDate')?.value,
+                        courtType: document.getElementById('reportCourtType')?.value }, 'PDF');
                 } catch (err) {
                     console.error('PDF generation failed', err);
                     alert('PDF generation failed: ' + (err.message || err));
@@ -1432,8 +1446,43 @@ const ADMIN_API = `${API_BASE}/api/admin`;
             }
         };
 
+        // ── Report history (class diagram: SystemReport) ─────────────────────
+        const reportHistoryController = {
+            async load() {
+                const box = document.getElementById('reportHistoryBody');
+                if (!box) return;
+                try {
+                    const res = await fetch(`${ADMIN_API}/reports/history?limit=15`);
+                    if (!res.ok) throw new Error();
+                    const list = await res.json();
+                    if (!list.length) { box.innerHTML = '<p class="text-slate-400 text-sm p-6">No reports generated yet.</p>'; return; }
+                    const label = t => t.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+                    const fmt = { VIEW: 'bg-slate-700 text-slate-300', PDF: 'bg-rose-900/50 text-rose-300', CSV: 'bg-emerald-900/50 text-emerald-300' };
+                    box.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-xs">
+                        <thead><tr class="text-left text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <th class="px-6 py-2">Generated</th><th class="px-6 py-2">Report</th><th class="px-6 py-2">Format</th><th class="px-6 py-2">Filters</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-slate-700/50">
+                        ${list.map(r => {
+                            let filters = '';
+                            try { filters = Object.entries(JSON.parse(r.filters || '{}')).map(([k, v]) => `${k}: ${v}`).join(' · '); } catch {}
+                            return `<tr>
+                                <td class="px-6 py-2 text-slate-400 whitespace-nowrap">${r.generatedAt ? new Date(r.generatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                                <td class="px-6 py-2 text-slate-200">${_esc(label(r.reportType))}</td>
+                                <td class="px-6 py-2"><span class="px-2 py-0.5 rounded-full font-medium ${fmt[r.exportFormat] || ''}">${_esc(r.exportFormat)}</span></td>
+                                <td class="px-6 py-2 text-slate-500">${_esc(filters || '—')}</td>
+                            </tr>`;
+                        }).join('')}
+                        </tbody></table></div>`;
+                } catch {
+                    box.innerHTML = '<p class="text-rose-400 text-sm p-6">Failed to load report history.</p>';
+                }
+            }
+        };
+
         disputesController.load();
         deliveryLogController.load();
+        reportHistoryController.load();
 
 
 
@@ -1469,6 +1518,7 @@ const ADMIN_API = `${API_BASE}/api/admin`;
                     const data = await res.json();
                     this._loaded = true;
                     this._allData = data;
+                    logReport('FACILITY_FEEDBACK', {}, 'VIEW');
                     loading.classList.add('hidden');
                     this._populateSports(data);
                     if (!data.length) { empty.classList.remove('hidden'); return; }
@@ -1776,6 +1826,7 @@ const ADMIN_API = `${API_BASE}/api/admin`;
                 var sportPart = sport ? '_' + sport.replace(/\s+/g, '-') : '';
                 var datePart  = (from || to) ? '_' + (from || '') + (to ? '_to_' + to : '') : '';
                 doc.save('Courtly_FeedbackReport' + sportPart + datePart + '.pdf');
+                logReport('FACILITY_FEEDBACK', {}, 'PDF');
             },
 
             _renderSummary(data) {
@@ -2050,6 +2101,7 @@ const ADMIN_API = `${API_BASE}/api/admin`;
                 a.href     = url;
                 a.download = 'Courtly_RankingsReport.csv';
                 a.click();
+                logReport('PLAYER_RANKINGS', {}, 'CSV');
                 URL.revokeObjectURL(url);
             },
 
@@ -2193,5 +2245,6 @@ const ADMIN_API = `${API_BASE}/api/admin`;
                 }
 
                 doc.save('Courtly_RankingsReport.pdf');
+                logReport('PLAYER_RANKINGS', {}, 'PDF');
             }
         };

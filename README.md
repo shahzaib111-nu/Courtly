@@ -207,6 +207,31 @@ Keep a copy of this key. Documents cannot be read without it. If it is not set, 
 - Every notification e-mail is logged (`notification_deliveries`). A failed e-mail is retried up to 5 times with growing delays. Admins can see the log under *Notification E-mail Delivery*.
 - A court with upcoming (pending or confirmed) bookings cannot be deleted.
 
+## Design Mapping (SCD class diagram and ERD → code)
+
+How the Phase 1 class diagram and ERD (`docs/phases/Courtly_SCD_Phase1_Team13.pdf`) are implemented:
+
+| Design | Implementation |
+|---|---|
+| `User` / `USERS` (incl. `failed_attempts`, `locked_until`) | `model/User.java` (`app_users` table) |
+| `Player` and its categories Regular / Senior / Student / Family / Group | `model/Player.java`. `category` plus the category fields `studentId`, `universityEmail`, `familySize`, `groupSize`, `leadMemberName`; `discountTier` = `discount_status`, `rankPoints` = `ranking_points` |
+| `Arena Manager` / `ARENA_MANAGER` | A `Player` with role `MANAGER`; its facility is `Facility.managerId` |
+| `Admin` / `ADMIN` | Built-in account from `secrets.yml` (`security/AdminAccount.java`) |
+| `Facility` / `FACILITY` (`getFacilityDetails`, `checkOperatingStatus`) | `model/Facility.java`, `/api/facilities`, "My Facility" card on the manager page |
+| `Court` / `COURT` (`facility_id`) | `model/Court.java` (`facilityId`) |
+| `TIME_SLOT` | Generated on demand from each court's hours and slot length (`CourtService.generateTimeSlots`); a booking stores its date and slot |
+| `Booking` / `BOOKING` | `model/Booking.java` |
+| `Payment` / `PAYMENT` (`masked_card`, `receipt_no`, `paid_at`) | `model/Payment.java` (`transactionDate` = `paid_at`) |
+| `VerificationDoc` / `VERIFICATION_DOC` (`reviewed_by`) | `model/VerificationDoc.java`; encrypted file contents in `VerificationDocContent` |
+| `MatchResult` / `MATCH_RESULT` (`opponent_id`, `winner_id`, `status`) | `model/MatchResult.java` |
+| `FacilityFeedback` / `FACILITY_FEEDBACK` (`facility_id`) | `model/FacilityRating.java` (`facilityId`, `facilityName`) |
+| `NOTIFICATION` (`channel`, `status`, `sent_at`) | In-app: `model/Notification.java`; e-mail delivery log: `model/NotificationDelivery.java` |
+| `SystemReport` / `SYSTEM_REPORT` (`admin_id`, `filters`, `export_format`) | `model/SystemReport.java`; report figures from `ReportService`, PDF/CSV export in the admin page, history under "Report History" |
+
+Deliberate differences: IDs are strings (e.g. `PLR001`, `FAC-001`, UUIDs) rather than `INT`; the ERD's `TIME_SLOT` table is not stored because slots are generated from court hours; player categories are one table with a `category` column instead of one subclass per category.
+
+**Database:** the spec does not require a specific DBMS (the ERD uses standard SQL types). The project uses H2 in file mode, so no database server needs to be installed. Switching to MySQL would only need the MySQL driver and a datasource URL, but the seed file (`data.sql`) uses H2's `MERGE ... KEY(...)` syntax and would need rewriting.
+
 ## Exception Handling
 
 - All API errors use a consistent JSON response: `timestamp`, `status`, `error`, `message`, and `path`.

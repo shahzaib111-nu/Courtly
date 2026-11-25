@@ -20,6 +20,7 @@ public class VerificationDoc {
     private String docType;
     private String rejectionReason;
     private Date reviewedAt;
+    private String reviewedBy;      // the admin who approved or rejected it
 
     @ManyToOne
     @JoinColumn(name = "player_id")

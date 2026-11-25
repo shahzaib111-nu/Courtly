@@ -23,6 +23,8 @@ public class FacilityRating {
 
     private String courtID;
     private String courtName;
+    private String facilityId;     // ERD: FACILITY_FEEDBACK.facility_id
+    private String facilityName;
     private String sportType;
     private String bookingDate;
 

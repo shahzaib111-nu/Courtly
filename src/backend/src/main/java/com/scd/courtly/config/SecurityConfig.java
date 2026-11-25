@@ -47,7 +47,8 @@ public class SecurityConfig {
                     "/h2-console/**", "/actuator/health").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET,
                     "/api/courts", "/api/courts/**", "/api/bookings/availability",
-                    "/api/bookings/court/**", "/api/bookings/price", "/api/ratings/average/**", "/api/ratings/all").permitAll()
+                    "/api/bookings/court/**", "/api/bookings/price", "/api/ratings/average/**", "/api/ratings/all",
+                    "/api/facilities", "/api/facilities/*").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/manager/**").hasAnyRole("ADMIN", "MANAGER")
                 .requestMatchers("/api/**").authenticated()

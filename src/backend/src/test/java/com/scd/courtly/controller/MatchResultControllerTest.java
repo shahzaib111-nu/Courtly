@@ -149,4 +149,28 @@ class MatchResultControllerTest extends IntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.fieldErrors.playerScore").exists());
     }
+
+    @Test
+    @DisplayName("ERD opponent_id / winner_id: a registered opponent (by username) is linked")
+    void registeredOpponentLinked() throws Exception {
+        Player rival = newPlayer();
+        rival.setUsername("the_rival");
+        playerRepository.saveAndFlush(rival);
+
+        mockMvc.perform(post("/api/matches/submit").header("Authorization", tokenFor(player))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("bookingID", booking.getBookingID(), "playerID", player.getUserID(),
+                    "opponentName", "The_Rival", "playerScore", 2, "opponentScore", 6, "result", "LOSS"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.opponentID").value(rival.getUserID()))
+            .andExpect(jsonPath("$.winnerID").value(rival.getUserID()));
+    }
+
+    @Test
+    @DisplayName("ERD winner_id: the submitter wins; an unregistered opponent stays unlinked")
+    void unregisteredOpponent() throws Exception {
+        submitScore(6, 1, "WIN")
+            .andExpect(jsonPath("$.opponentID").doesNotExist())
+            .andExpect(jsonPath("$.winnerID").value(player.getUserID()));
+    }
 }

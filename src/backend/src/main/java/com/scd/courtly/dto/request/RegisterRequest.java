@@ -18,5 +18,9 @@ public record RegisterRequest(
     @NotBlank String dateOfBirth,
     @NotBlank String role,
     @Pattern(regexp = "^$|" + PlayerFields.CATEGORY_REGEX, message = PlayerFields.CATEGORY_MESSAGE) String category,
-    @Min(2) @Max(50) Integer groupSize
+    @Min(2) @Max(50) Integer groupSize,
+    @Size(max = 30) String studentId,
+    @Email @Size(max = 100) String universityEmail,
+    @Min(2) @Max(20) Integer familySize,
+    @Size(max = 100) String leadMemberName
 ) {}

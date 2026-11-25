@@ -67,6 +67,7 @@ class AdminControllerTest extends IntegrationTest {
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
             assertThat(playerRepository.findById(p.getUserID()).orElseThrow().getDiscountTier()).isEqualTo("STUDENT");
+            assertThat(docRepository.findById(d.getDocID()).orElseThrow().getReviewedBy()).isEqualTo("ADMIN"); // ERD reviewed_by
             assertThat(notificationRepository.findByUserIdOrderByCreatedAtDesc(p.getUserID()))
                 .anyMatch(n -> n.getType().equals("PROFILE_VERIFIED"));
         }
@@ -257,6 +258,70 @@ class AdminControllerTest extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"));
             verify(emailService).sendNotificationEmail(eq("x@test.local"), anyString(), anyString(), anyString());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("Report history (SYSTEM_REPORT)")
+    class ReportHistory {
+
+        @Test
+        @DisplayName("generating a report records who ran it, with which filters")
+        void recordsGeneratedReports() throws Exception {
+            mockMvc.perform(get("/api/admin/reports").header("Authorization", adminToken())
+                    .param("type", "REVENUE_SUMMARY").param("startDate", "2026-04-01").param("endDate", "2026-05-31"))
+                .andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/admin/reports/history").header("Authorization", adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reportType").value("REVENUE_SUMMARY"))
+                .andExpect(jsonPath("$[0].adminId").value("ADMIN"))
+                .andExpect(jsonPath("$[0].exportFormat").value("VIEW"))
+                .andExpect(jsonPath("$[0].filters", containsString("\"startDate\":\"2026-04-01\"")))
+                .andExpect(jsonPath("$[0].generatedAt").exists());
+        }
+
+        @Test
+        @DisplayName("the rankings report is recorded too")
+        void recordsRankings() throws Exception {
+            mockMvc.perform(get("/api/matches/rankings").header("Authorization", adminToken()).param("sportType", "TENNIS"))
+                .andExpect(status().isOk());
+            mockMvc.perform(get("/api/admin/reports/history").header("Authorization", adminToken()))
+                .andExpect(jsonPath("$[0].reportType").value("PLAYER_RANKINGS"))
+                .andExpect(jsonPath("$[0].filters", containsString("TENNIS")));
+        }
+
+        @Test
+        @DisplayName("POST /reports/log records a PDF export; unknown types or formats → 400")
+        void logsExports() throws Exception {
+            mockMvc.perform(post("/api/admin/reports/log").header("Authorization", adminToken())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content(json(java.util.Map.of("reportType", "facility_feedback", "exportFormat", "pdf",
+                        "filters", java.util.Map.of("sport", "TENNIS")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportType").value("FACILITY_FEEDBACK"))
+                .andExpect(jsonPath("$.exportFormat").value("PDF"));
+
+            mockMvc.perform(post("/api/admin/reports/log").header("Authorization", adminToken())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content(json(java.util.Map.of("reportType", "SECRET_DUMP", "exportFormat", "PDF"))))
+                .andExpect(status().isBadRequest());
+            mockMvc.perform(post("/api/admin/reports/log").header("Authorization", adminToken())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content(json(java.util.Map.of("reportType", "REVENUE_SUMMARY", "exportFormat", "EXE"))))
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("only admins can see or add report history")
+        void adminOnly() throws Exception {
+            mockMvc.perform(get("/api/admin/reports/history").header("Authorization", managerToken()))
+                .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/admin/reports/log").header("Authorization", playerToken())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content(json(java.util.Map.of("reportType", "REVENUE_SUMMARY", "exportFormat", "PDF"))))
+                .andExpect(status().isForbidden());
         }
     }
 }

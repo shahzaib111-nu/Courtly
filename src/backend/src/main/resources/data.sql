@@ -727,3 +727,14 @@ UPDATE app_users SET auth_provider = 'LOCAL' WHERE auth_provider IS NULL;
 -- ── Match result status (FR-38) ──────────────────────────────────────────────
 -- Results saved before disputes existed are valid.
 UPDATE match_results SET status = 'VALID' WHERE status IS NULL;
+
+-- ── Facilities (class diagram: Facility, ERD: FACILITY) ──────────────────────
+-- Inserted only once, so details a manager edits are kept across restarts.
+-- FacilityBackfill links each manager's courts (and their ratings) to the facility.
+INSERT INTO facilities (facilityid, name, location, opening_time, closing_time, manager_id, created_at)
+SELECT 'FAC-001', 'Gulberg Sports Arena', 'Main Boulevard, Gulberg III, Lahore', '07:00', '23:00', 'MGR001', '2026-03-01 10:00:00'
+WHERE NOT EXISTS (SELECT 1 FROM facilities WHERE facilityid = 'FAC-001' OR manager_id = 'MGR001');
+
+INSERT INTO facilities (facilityid, name, location, opening_time, closing_time, manager_id, created_at)
+SELECT 'FAC-002', 'DHA Sports Complex', 'Phase 5, DHA, Lahore', '07:00', '23:00', 'MGR002', '2026-03-01 10:00:00'
+WHERE NOT EXISTS (SELECT 1 FROM facilities WHERE facilityid = 'FAC-002' OR manager_id = 'MGR002');

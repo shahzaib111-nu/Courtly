@@ -62,3 +62,84 @@
                 } catch (_) {}
             }, 30 * 60 * 1000);
         })();
+
+
+// ── My Facility (class diagram: Facility; FR-32 update facility information) ──
+const facilityInfoController = {
+    facility: null,
+
+    async load() {
+        if (!document.getElementById('facilityCard')) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/facilities/mine`);
+            if (!res.ok) throw new Error();
+            this.facility = await res.json();
+            this.render();
+        } catch {
+            document.getElementById('facilityName').textContent = 'Facility unavailable';
+        }
+    },
+
+    render() {
+        const f = this.facility;
+        document.getElementById('facilityName').textContent     = f.name;
+        document.getElementById('facilityLocation').textContent = f.location ? `📍 ${f.location}` : '📍 Location not set yet: click Edit Facility';
+        document.getElementById('facilityHours').textContent    = `${f.openingTime} – ${f.closingTime}`;
+        const st = document.getElementById('facilityStatus');
+        st.textContent = f.operatingStatus === 'OPEN' ? 'Open now' : 'Closed now';
+        st.className   = 'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ' +
+            (f.operatingStatus === 'OPEN' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-slate-700 text-slate-300');
+        document.getElementById('facilityRating').textContent =
+            f.averageRating != null ? `★ ${f.averageRating}` : '—';
+    },
+
+    edit() {
+        const f = this.facility || {};
+        document.getElementById('facNameInput').value     = f.name || '';
+        document.getElementById('facLocationInput').value = f.location || '';
+        document.getElementById('facOpenInput').value     = f.openingTime || '08:00';
+        document.getElementById('facCloseInput').value    = f.closingTime || '22:00';
+        document.getElementById('facilityError').classList.add('hidden');
+        document.getElementById('facilityView').classList.add('hidden');
+        document.getElementById('facilityForm').classList.remove('hidden');
+    },
+
+    cancel() {
+        document.getElementById('facilityForm').classList.add('hidden');
+        document.getElementById('facilityView').classList.remove('hidden');
+    },
+
+    async save() {
+        const body = {
+            name:        document.getElementById('facNameInput').value.trim(),
+            location:    document.getElementById('facLocationInput').value.trim(),
+            openingTime: document.getElementById('facOpenInput').value,
+            closingTime: document.getElementById('facCloseInput').value,
+        };
+        const err = document.getElementById('facilityError');
+        const btn = document.getElementById('facSaveBtn');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+            const res  = await fetch(`${API_BASE}/api/facilities/${encodeURIComponent(this.facility.facilityID)}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                err.textContent = apiErrorText(data, 'The facility could not be saved.');
+                err.classList.remove('hidden');
+                return;
+            }
+            this.facility = data;
+            this.render();
+            this.cancel();
+            showPopup('Facility details updated.');
+        } catch {
+            err.textContent = `Cannot connect to server. Make sure the backend is running at ${API_BASE}.`;
+            err.classList.remove('hidden');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Save Facility';
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => facilityInfoController.load());

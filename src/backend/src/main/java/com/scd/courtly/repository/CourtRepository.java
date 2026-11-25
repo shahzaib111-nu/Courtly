@@ -15,6 +15,8 @@ import java.util.Optional;
 public interface CourtRepository extends JpaRepository<Court, String> {
 
     List<Court> findBySportType(String sportType);
+    List<Court> findByFacilityId(String facilityId);
+    long countByFacilityId(String facilityId);
     List<Court> findByStatus(String status);
     List<Court> findBySportTypeAndStatus(String sportType, String status);
 

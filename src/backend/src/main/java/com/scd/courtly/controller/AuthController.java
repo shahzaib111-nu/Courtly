@@ -66,7 +66,8 @@ public class AuthController {
             newPlayer.setRole("MANAGER".equalsIgnoreCase(request.role()) ? "MANAGER" : "PLAYER");
             newPlayer.setUsername(request.username());
             if ("PLAYER".equals(newPlayer.getRole())) {
-                applyCategory(newPlayer, request.category(), request.groupSize());
+                applyCategory(newPlayer, request.category(), request.groupSize(), request.studentId(),
+                    request.universityEmail(), request.familySize(), request.leadMemberName());
             }
 
             User savedUser = userService.register(newPlayer);
@@ -154,7 +155,8 @@ public class AuthController {
         p.setPhone(request.phone().trim());
         p.setDateOfBirth(request.dateOfBirth());
         if (!"MANAGER".equals(p.getRole())) {
-            applyCategory(p, request.category(), request.groupSize());
+            applyCategory(p, request.category(), request.groupSize(), request.studentId(),
+                request.universityEmail(), request.familySize(), request.leadMemberName());
         }
         return ResponseEntity.ok(toProfile(playerRepository.save(p)));
     }
@@ -162,21 +164,37 @@ public class AuthController {
     private static ProfileResponse toProfile(Player p) {
         return new ProfileResponse(
             p.getName(), p.getEmail(), p.getUsername(), p.getPhone(), p.getDateOfBirth(),
-            p.getCategory() != null ? p.getCategory() : "REGULAR", p.getGroupMemberCount(),
+            p.getCategory() != null ? p.getCategory() : "REGULAR", p.getGroupSize(),
+            p.getStudentId(), p.getUniversityEmail(), p.getFamilySize(), p.getLeadMemberName(),
             p.getDiscountTier() != null ? p.getDiscountTier() : "NONE",
             p.getAccountStatus(), p.getDeletionStatus(),
             p.getAuthProvider() != null ? p.getAuthProvider() : "LOCAL",
             p.getPasswordHash() != null && !p.getPasswordHash().isBlank());
     }
 
-    /** FR-9: Regular (default), Student, Senior, Family or Group; a group also needs its size. */
-    private static void applyCategory(Player p, String category, Integer groupSize) {
+    /**
+     * FR-9: Regular (default), Student, Senior, Family or Group, with the details each category
+     * has in the class diagram. Details that do not belong to the chosen category are cleared.
+     */
+    private static void applyCategory(Player p, String category, Integer groupSize, String studentId,
+                                      String universityEmail, Integer familySize, String leadMemberName) {
         String c = category == null || category.isBlank() ? "REGULAR" : category.trim().toUpperCase();
         if ("GROUP".equals(c) && groupSize == null) {
             throw new BusinessException("Enter the number of people in your group (2-50).");
         }
         p.setCategory(c);
-        p.setGroupMemberCount("GROUP".equals(c) ? groupSize : null);
+        boolean student = "STUDENT".equals(c), family = "FAMILY".equals(c), group = "GROUP".equals(c);
+        p.setStudentId(student ? blankToNull(studentId) : null);
+        p.setUniversityEmail(student ? blankToNull(universityEmail) : null);
+        p.setFamilySize(family ? familySize : null);
+        p.setGroupSize(group ? groupSize : null);
+        p.setLeadMemberName(group
+            ? (blankToNull(leadMemberName) != null ? leadMemberName.trim() : p.getName())
+            : null);
+    }
+
+    private static String blankToNull(String v) {
+        return v == null || v.isBlank() ? null : v.trim();
     }
 
     @PreAuthorize("hasRole('USER')")

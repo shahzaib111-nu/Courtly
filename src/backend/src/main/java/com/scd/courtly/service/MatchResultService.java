@@ -76,9 +76,11 @@ public class MatchResultService {
         mr.setBookingDate(booking.getBookingDate());
         mr.setTimeSlot(booking.getTimeSlot());
         mr.setOpponentName(opponentName);
+        mr.setOpponentID(resolveOpponent(opponentName, playerID));
         mr.setPlayerScore(playerScore);
         mr.setOpponentScore(opponentScore);
         mr.setResult(normalizedResult);
+        mr.setWinnerID(disputed ? null : winnerOf(normalizedResult, playerID, mr.getOpponentID()));
         mr.setStatus(disputed ? "DISPUTED" : "VALID");
         mr.setDisputeReason(conflict);
         mr.setPointsEarned(disputed ? 0 : points);   // no ranking points until an admin decides
@@ -123,6 +125,7 @@ public class MatchResultService {
         mr.setOpponentScore(opponentScore);
         mr.setResult(normalizedResult);
         mr.setPointsEarned(points);
+        mr.setWinnerID(winnerOf(normalizedResult, mr.getPlayerID(), mr.getOpponentID()));
         mr.setStatus("RESOLVED");
         mr.setResolvedAt(java.time.LocalDateTime.now());
         MatchResult saved = matchResultRepository.save(mr);
@@ -133,6 +136,24 @@ public class MatchResultService {
                 + ". Final result: " + normalizedResult + " " + playerScore + "-" + opponentScore
                 + " (" + points + " ranking point" + (points == 1 ? "" : "s") + ").");
         return saved;
+    }
+
+    /** The registered player the opponent name refers to (by username or e-mail), if any. */
+    private String resolveOpponent(String opponentName, String playerID) {
+        if (opponentName == null || opponentName.isBlank()) return null;
+        String id = opponentName.trim();
+        var found = id.contains("@")
+            ? playerRepository.findByEmail(id)
+            : playerRepository.findByUsername(id.toLowerCase(java.util.Locale.ROOT));
+        return found.map(p -> p.getUserID()).filter(oid -> !oid.equals(playerID)).orElse(null);
+    }
+
+    private static String winnerOf(String result, String playerID, String opponentID) {
+        return switch (result) {
+            case "WIN"  -> playerID;
+            case "LOSS" -> opponentID;
+            default     -> null;
+        };
     }
 
     /** Null when the scores agree with the result, otherwise why they conflict. */

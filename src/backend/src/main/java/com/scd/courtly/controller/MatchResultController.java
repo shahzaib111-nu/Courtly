@@ -21,6 +21,7 @@ public class MatchResultController {
 
     private final MatchResultService matchResultService;
     private final AccessGuard guard;
+    private final com.scd.courtly.service.ReportHistoryService reportHistory;
 
     /** POST /api/matches/submit */
     @PostMapping("/submit")
@@ -77,6 +78,12 @@ public class MatchResultController {
             @RequestParam(required = false) String sportType,
             @RequestParam(required = false) String dateFrom,
             @RequestParam(required = false) String dateTo) {
-        return ResponseEntity.ok(matchResultService.getRankingsReport(sportType, dateFrom, dateTo));
+        var report = matchResultService.getRankingsReport(sportType, dateFrom, dateTo);
+        Map<String, String> filters = new java.util.LinkedHashMap<>();
+        filters.put("sportType", sportType);
+        filters.put("dateFrom", dateFrom);
+        filters.put("dateTo", dateTo);
+        reportHistory.record(guard.caller().userId(), "PLAYER_RANKINGS", filters, "VIEW");
+        return ResponseEntity.ok(report);
     }
 }

@@ -37,6 +37,8 @@ public class Court {
 
     private String managerId;       // userId of the arena manager who owns this court
 
+    private String facilityId;      // the facility that contains this court (ERD: COURT.facility_id)
+
     // ── Variable pricing ──────────────────────────────────────────────────
     private String peakStartTime;       // "HH:mm"  e.g. "17:00"
     private String peakEndTime;         // "HH:mm"  e.g. "21:00"

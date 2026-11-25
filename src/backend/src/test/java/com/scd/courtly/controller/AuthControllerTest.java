@@ -525,7 +525,7 @@ class AuthControllerTest extends IntegrationTest {
             body.put("groupSize", 6);
             mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)))
                 .andExpect(status().isOk());
-            assertThat(playerRepository.findByEmail("group@test.local").orElseThrow().getGroupMemberCount())
+            assertThat(playerRepository.findByEmail("group@test.local").orElseThrow().getGroupSize())
                 .isEqualTo(6);
         }
 
@@ -572,6 +572,43 @@ class AuthControllerTest extends IntegrationTest {
             Player saved = playerRepository.findById(p.getUserID()).orElseThrow();
             assertThat(saved.getPhone()).isEqualTo("+92 321 1234567");
             assertThat(saved.getDateOfBirth()).isEqualTo("1999-09-09");
+        }
+
+        @Test
+        @DisplayName("category details from the design: student ID and university e-mail, family size, group lead")
+        void categoryDetails() throws Exception {
+            Player p = newPlayer();
+            Map<String, Object> body = changes();
+            body.put("category", "STUDENT");
+            body.put("studentId", "22L-1234");
+            body.put("universityEmail", "l221234@lhr.nu.edu.pk");
+            body.put("familySize", 4);                       // ignored: not a family
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.studentId").value("22L-1234"))
+                .andExpect(jsonPath("$.universityEmail").value("l221234@lhr.nu.edu.pk"))
+                .andExpect(jsonPath("$.familySize").doesNotExist())
+                .andExpect(jsonPath("$.groupSize").doesNotExist());
+
+            body = changes();                                 // GROUP of 4, no lead given
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(jsonPath("$.leadMemberName").value("Renamed Player"))   // defaults to the player
+                .andExpect(jsonPath("$.studentId").doesNotExist());             // student details cleared
+
+            body.put("category", "FAMILY");
+            body.put("familySize", 5);
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(jsonPath("$.familySize").value(5))
+                .andExpect(jsonPath("$.groupSize").doesNotExist());
+
+            body.put("universityEmail", "not-an-email");
+            mockMvc.perform(put("/api/auth/profile").header("Authorization", tokenFor(p))
+                    .contentType(MediaType.APPLICATION_JSON).content(json(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.universityEmail").exists());
         }
 
         @Test

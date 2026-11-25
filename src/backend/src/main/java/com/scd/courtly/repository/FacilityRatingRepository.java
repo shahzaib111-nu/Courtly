@@ -12,6 +12,7 @@ public interface FacilityRatingRepository extends JpaRepository<FacilityRating, 
     boolean existsByBookingID(String bookingID);
     List<FacilityRating> findByPlayerIDOrderBySubmittedAtDesc(String playerID);
     List<FacilityRating> findByCourtID(String courtID);
+    List<FacilityRating> findByFacilityId(String facilityId);
     List<FacilityRating> findAllByOrderBySubmittedAtDesc();
 
     @Query("SELECT AVG(r.ratingScore) FROM FacilityRating r WHERE r.courtID = :courtID")

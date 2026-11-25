@@ -34,6 +34,12 @@ public class AdminController {
     private com.scd.courtly.service.DocumentStorageService documentStorage;
 
     @Autowired
+    private com.scd.courtly.service.ReportHistoryService reportHistory;
+
+    @Autowired
+    private com.scd.courtly.security.AccessGuard guard;
+
+    @Autowired
     private PlayerRepository playerRepository;
 
     @Autowired
@@ -85,6 +91,7 @@ public class AdminController {
         VerificationDoc doc = docOpt.get();
         doc.setStatus(newStatus);
         doc.setReviewedAt(new Date());
+        doc.setReviewedBy(guard.caller().userId());   // ERD: VERIFICATION_DOC.reviewed_by
 
         if ("APPROVED".equals(newStatus)) {
             Player player = doc.getPlayer();
@@ -217,7 +224,28 @@ public class AdminController {
             @RequestParam String startDate,
             @RequestParam String endDate,
             @RequestParam(required = false) String courtType) {
-        return ResponseEntity.ok(reportService.buildReport(type, startDate, endDate, courtType));
+        Map<String, Object> report = reportService.buildReport(type, startDate, endDate, courtType);
+        Map<String, String> filters = new java.util.LinkedHashMap<>();
+        filters.put("startDate", startDate);
+        filters.put("endDate", endDate);
+        filters.put("courtType", courtType);
+        if (SystemReport.TYPES.contains(type.toUpperCase())) {
+            reportHistory.record(guard.caller().userId(), type, filters, "VIEW");
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /** Records a report the admin generated or exported in the browser (SYSTEM_REPORT). */
+    @PostMapping("/reports/log")
+    public ResponseEntity<SystemReport> logReport(@jakarta.validation.Valid @RequestBody com.scd.courtly.dto.request.ReportLogRequest request) {
+        return ResponseEntity.ok(reportHistory.record(guard.caller().userId(), request.reportType(),
+                request.filters(), request.exportFormat()));
+    }
+
+    /** The most recent generated/exported reports. */
+    @GetMapping("/reports/history")
+    public ResponseEntity<List<SystemReport>> getReportHistory(@RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(reportHistory.recent(limit));
     }
 
     @GetMapping("/pending-managers")
