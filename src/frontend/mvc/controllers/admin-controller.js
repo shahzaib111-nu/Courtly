@@ -226,8 +226,11 @@ function logReport(reportType, filters, exportFormat) {
 
             async confirmReject() {
                 const reason = document.getElementById('rejectReason').value.trim();
-                if (!reason) {
-                    document.getElementById('rejectReason').focus();
+                if (reason.length < 5) {          // FR-30: the player must be told why
+                    const el = document.getElementById('rejectReason');
+                    el.focus();
+                    el.classList.add('ring-2', 'ring-rose-500');
+                    el.placeholder = 'Please give a reason (at least 5 characters)';
                     return;
                 }
 

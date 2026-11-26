@@ -73,6 +73,15 @@ public class FacilityManagerController {
         if (from.isBefore(LocalDateTime.now())) {
             return ResponseEntity.badRequest().body(Map.of("error", "Maintenance start time must be in the future."));
         }
+        if (from.isAfter(LocalDateTime.now().plusYears(1))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Maintenance can be scheduled at most one year ahead."));
+        }
+        if (to != null && !to.isAfter(from)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Maintenance end time must be after the start time."));
+        }
+        if (to != null && to.isAfter(from.plusDays(90))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "A maintenance window can last at most 90 days."));
+        }
 
         try {
             var court = facilityManagerService.scheduleMaintenance(courtID, from, to);

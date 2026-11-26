@@ -48,7 +48,7 @@ public class UserService {
 
     /** Returns null when the e-mail is already registered; throws ConflictException for a taken username. */
     public User register(User userData) {
-        Optional<User> existing = userRepository.findByEmail(userData.getEmail());
+        Optional<User> existing = userRepository.findByEmailIgnoreCase(userData.getEmail());
         if (existing.isPresent()) {
             return null;
         }
@@ -76,7 +76,7 @@ public class UserService {
         if (identifier == null || identifier.isBlank()) return Optional.empty();
         String id = identifier.trim();
         return id.contains("@")
-            ? userRepository.findByEmail(id)
+            ? userRepository.findByEmailIgnoreCase(id)
             : userRepository.findByUsername(normalizeUsername(id));
     }
 

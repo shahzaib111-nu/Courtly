@@ -91,6 +91,19 @@ public class AdminController {
             return ResponseEntity.notFound().build();
         }
 
+        // FR-30: only approve or reject, and a rejection must say why
+        if (!"APPROVED".equals(newStatus) && !"REJECTED".equals(newStatus)) {
+            throw new com.scd.courtly.exception.BusinessException("newStatus must be APPROVED or REJECTED.");
+        }
+        if ("REJECTED".equals(newStatus)) {
+            String reason = rejectionReason == null ? "" : rejectionReason.trim();
+            if (reason.length() < 5 || reason.length() > 255) {
+                throw new com.scd.courtly.exception.BusinessException(
+                    "Give the player a reason for the rejection (5-255 characters).");
+            }
+            rejectionReason = reason;
+        }
+
         VerificationDoc doc = docOpt.get();
         doc.setStatus(newStatus);
         doc.setReviewedAt(new Date());
@@ -289,6 +302,12 @@ public class AdminController {
             return ResponseEntity.notFound().build();
         }
         Player manager = playerOpt.get();
+        if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
+            throw new com.scd.courtly.exception.BusinessException("action must be APPROVE or REJECT.");
+        }
+        if (rejectionReason != null && rejectionReason.trim().length() > 255) {
+            throw new com.scd.courtly.exception.BusinessException("The rejection reason can be at most 255 characters.");
+        }
 
         if ("APPROVE".equals(action)) {
             manager.setAccountStatus("Active");

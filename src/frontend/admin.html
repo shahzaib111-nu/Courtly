@@ -608,7 +608,7 @@
         <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-md shadow-2xl fade-in">
             <h3 class="text-lg font-semibold text-white mb-1">Reject Verification</h3>
             <p class="text-slate-400 text-sm mb-4">Provide a reason so the player knows what to resubmit.</p>
-            <textarea id="rejectReason" rows="3" placeholder="e.g. Document is blurry, please resubmit a clearer photo."
+            <textarea id="rejectReason" maxlength="255" rows="3" placeholder="e.g. Document is blurry, please resubmit a clearer photo."
                 class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-500 placeholder-slate-500 resize-none"></textarea>
             <div class="flex gap-3 mt-4">
                 <button onclick="adminController.confirmReject()"

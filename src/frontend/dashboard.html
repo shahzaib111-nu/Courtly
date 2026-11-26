@@ -96,7 +96,7 @@
             <!-- Quick Book -->
             <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-6 rounded-2xl shadow-xl h-fit">
                 <h2 class="text-xl font-semibold mb-4">⚡ Quick Book</h2>
-                <form id="bookingForm" class="space-y-4">
+                <form id="bookingForm" class="space-y-4" onsubmit="return false;">
                     <!-- Hidden state fields -->
                     <input type="hidden" id="bDate">
                     <input type="hidden" id="bIsPeak">
@@ -256,7 +256,7 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-xs text-slate-400 mb-1 block">Phone</label>
-                        <input id="editPhone" type="tel" maxlength="30" class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <input id="editPhone" type="tel" maxlength="16" inputmode="tel" placeholder="0300-1234567" class="w-full bg-slate-900/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label class="text-xs text-slate-400 mb-1 block">Date of birth</label>
@@ -349,7 +349,7 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Opponent Name</label>
-                    <input type="text" id="matchOpponent" placeholder="e.g. John Doe"
+                    <input type="text" id="matchOpponent" maxlength="100" placeholder="Name, or their Courtly username/email"
                         class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -421,7 +421,7 @@
             <!-- Feedback text -->
             <div class="mb-4">
                 <label class="block text-sm text-slate-400 mb-1.5">Feedback <span class="text-slate-500">(optional)</span></label>
-                <textarea id="ratingFeedback" rows="3" placeholder="e.g. Great court, well maintained. Staff was helpful."
+                <textarea id="ratingFeedback" rows="3" maxlength="500" placeholder="e.g. Great court, well maintained. Staff was helpful."
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-500 text-sm focus:border-amber-500 focus:outline-none resize-none"></textarea>
             </div>
 

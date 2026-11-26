@@ -116,7 +116,21 @@ class FacilityManagerControllerTest extends IntegrationTest {
         void badFormat() throws Exception {
             schedule(TestData.TENNIS_COURT_1, Map.of("maintenanceFrom", "next tuesday"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", containsString("ISO-8601")));
+                .andExpect(jsonPath("$.fieldErrors.maintenanceFrom", containsString("2026-12-01T09:00")));
+        }
+
+        @Test
+        @DisplayName("end before start, or a window longer than 90 days → 400")
+        void badWindow() throws Exception {
+            String start = java.time.LocalDateTime.now().plusDays(2).withNano(0).withSecond(0).toString();
+            String before = java.time.LocalDateTime.now().plusDays(1).withNano(0).withSecond(0).toString();
+            String farEnd = java.time.LocalDateTime.now().plusDays(200).withNano(0).withSecond(0).toString();
+            schedule(TestData.TENNIS_COURT_1, Map.of("maintenanceFrom", start, "maintenanceTo", before))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsString("after the start")));
+            schedule(TestData.TENNIS_COURT_1, Map.of("maintenanceFrom", start, "maintenanceTo", farEnd))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", containsString("90 days")));
         }
 
         @Test

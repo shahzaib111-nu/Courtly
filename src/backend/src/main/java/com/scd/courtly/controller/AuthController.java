@@ -9,6 +9,8 @@ import com.scd.courtly.exception.BusinessException;
 import com.scd.courtly.exception.NotFoundException;
 import com.scd.courtly.exception.UnauthorizedException;
 import com.scd.courtly.repository.UserRepository;
+import com.scd.courtly.validation.PhoneNumbers;
+import com.scd.courtly.validation.Rules;
 import org.springframework.http.HttpStatus;
 import com.scd.courtly.model.Player;
 import com.scd.courtly.model.User;
@@ -61,9 +63,14 @@ public class AuthController {
             newPlayer.setName(request.name());
             newPlayer.setEmail(request.email());
             newPlayer.setPasswordHash(request.password());
-            newPlayer.setPhone(request.phone());
+            newPlayer.setPhone(PhoneNumbers.normalize(request.phone()));   // stored as 03XX-XXXXXXX
             newPlayer.setDateOfBirth(request.dateOfBirth());
             newPlayer.setRole("MANAGER".equalsIgnoreCase(request.role()) ? "MANAGER" : "PLAYER");
+            if ("MANAGER".equals(newPlayer.getRole()) && Rules.age(request.dateOfBirth()) < Rules.MIN_MANAGER_AGE) {
+                throw new BusinessException("Arena managers must be at least " + Rules.MIN_MANAGER_AGE + " years old.");
+            }
+            newPlayer.setName(request.name().trim());
+            newPlayer.setEmail(request.email().trim().toLowerCase());
             newPlayer.setUsername(request.username());
             if ("PLAYER".equals(newPlayer.getRole())) {
                 applyCategory(newPlayer, request.category(), request.groupSize(), request.studentId(),
@@ -152,7 +159,10 @@ public class AuthController {
         }
         p.setUsername(username);
         p.setName(request.name().trim());
-        p.setPhone(request.phone().trim());
+        p.setPhone(PhoneNumbers.normalize(request.phone()));
+        if ("MANAGER".equals(p.getRole()) && Rules.age(request.dateOfBirth()) < Rules.MIN_MANAGER_AGE) {
+            throw new BusinessException("Arena managers must be at least " + Rules.MIN_MANAGER_AGE + " years old.");
+        }
         p.setDateOfBirth(request.dateOfBirth());
         if (!"MANAGER".equals(p.getRole())) {
             applyCategory(p, request.category(), request.groupSize(), request.studentId(),

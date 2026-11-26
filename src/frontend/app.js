@@ -179,6 +179,68 @@ function passwordPolicyError(pass) {
     return '';
 }
 
+/**
+ * Validation rules, the same as the server's (backend validation/Rules.java).
+ * Each returns an error message, or '' when the value is fine.
+ */
+const Validate = {
+    name(v) {
+        return /^(?=.*\p{L})[\p{L} .'-]{2,100}$/u.test((v || '').trim())
+            ? '' : 'Use 2-100 letters; spaces, dots, apostrophes and hyphens are allowed.';
+    },
+    email(v) {
+        const e = (v || '').trim();
+        if (!e) return 'Email address is required.';
+        if (e.length > 100) return 'Email can be at most 100 characters.';
+        return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(e)
+            ? '' : 'Enter a valid email address, e.g. name@example.com';
+    },
+    /** Pakistani mobile number → "03XX-XXXXXXX", or null when invalid. */
+    normalizePhone(v) {
+        const raw = (v || '').trim();
+        if (!/^[+\d\s()-]{10,20}$/.test(raw)) return null;
+        let d = raw.replace(/[\s()-]/g, '');
+        if (d.startsWith('+92')) d = '0' + d.slice(3);
+        else if (d.startsWith('0092')) d = '0' + d.slice(4);
+        else if (d.startsWith('92') && d.length === 12) d = '0' + d.slice(2);
+        return /^03\d{9}$/.test(d) ? d.slice(0, 4) + '-' + d.slice(4) : null;
+    },
+    phone(v) {
+        if (!(v || '').trim()) return 'Phone number is required.';
+        return this.normalizePhone(v) ? '' : 'Enter a Pakistani mobile number: 11 digits starting with 03, e.g. 0300-1234567.';
+    },
+    /** Date of birth (YYYY-MM-DD): a past date with age between minAge and 100. */
+    dateOfBirth(v, minAge = 5) {
+        if (!v) return 'Date of birth is required.';
+        const dob = new Date(v + 'T00:00:00');
+        if (isNaN(dob)) return 'Enter a valid date of birth.';
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        if (dob >= today) return 'Date of birth must be in the past.';
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+        if (age < minAge) return minAge >= 18 ? 'Arena managers must be at least 18 years old.' : `You must be at least ${minAge} years old.`;
+        if (age > 100) return 'Please enter a valid date of birth.';
+        return '';
+    },
+    username(v) {
+        const u = (v || '').trim();
+        return !u || /^[A-Za-z0-9._]{3,30}$/.test(u) ? '' : 'Username: 3-30 letters, numbers, dots or underscores.';
+    },
+    studentId(v) {
+        const u = (v || '').trim();
+        return !u || /^[A-Za-z0-9-]{3,30}$/.test(u) ? '' : 'Student ID: 3-30 letters, numbers or hyphens (e.g. 22L-1234).';
+    },
+    universityEmail(v) {
+        const u = (v || '').trim();
+        return !u || /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*(edu|ac)(\.[A-Za-z]{2,})*$/.test(u)
+            ? '' : 'Use your university email (for example name@lhr.nu.edu.pk).';
+    },
+};
+
+/** Today as YYYY-MM-DD, for the max attribute of date-of-birth inputs. */
+function todayIso() { return localDateStr(); }
+
 /** Shows the group-size field only for the Group category. */
 function toggleGroupSize(selectId, rowId) {
     const sel = document.getElementById(selectId);
@@ -219,69 +281,34 @@ function validateLoginForm() {
 }
 
 function validateRegisterForm() {
-    const name  = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const phone = document.getElementById('regPhone').value.trim();
-    const dob   = document.getElementById('regDob').value;
-    const pass  = document.getElementById('regPass').value;
-    let valid = true;
-
+    const name      = document.getElementById('regName').value.trim();
+    const email     = document.getElementById('regEmail').value.trim();
+    const phone     = document.getElementById('regPhone').value.trim();
+    const dob       = document.getElementById('regDob').value;
+    const pass      = document.getElementById('regPass').value;
+    const confirm   = document.getElementById('regConfirmPass')?.value ?? pass;
     const username  = (document.getElementById('regUsername')?.value || '').trim();
     const category  = document.getElementById('regCategory')?.value || 'REGULAR';
     const groupSize = document.getElementById('regGroupSize')?.value || '';
     const isManager = uiController._role === 'manager';
+    let valid = true;
+    const check = (id, message) => { if (message) { showFieldError(id, message); valid = false; } };
 
-    ['regName', 'regEmail', 'regUsername', 'regPhone', 'regDob', 'regPass', 'regGroupSize'].forEach(clearFieldError);
+    ['regName', 'regEmail', 'regUsername', 'regPhone', 'regDob', 'regPass', 'regConfirmPass', 'regGroupSize']
+        .forEach(id => document.getElementById(id) && clearFieldError(id));
 
-    if (username && !/^[A-Za-z0-9._]{3,30}$/.test(username)) {
-        showFieldError('regUsername', 'Use 3-30 letters, numbers, dots or underscores.');
-        valid = false;
+    check('regName',     Validate.name(name));
+    check('regEmail',    Validate.email(email));
+    check('regUsername', Validate.username(username));
+    check('regPhone',    Validate.phone(phone));
+    check('regDob',      Validate.dateOfBirth(dob, isManager ? 18 : 5));
+    check('regPass',     passwordPolicyError(pass));
+    if (!passwordPolicyError(pass) && document.getElementById('regConfirmPass')) {
+        check('regConfirmPass', pass === confirm ? '' : 'Passwords do not match.');
     }
     if (!isManager && category === 'GROUP' && !(Number(groupSize) >= 2 && Number(groupSize) <= 50)) {
-        showFieldError('regGroupSize', 'Enter the number of people in your group (2-50).');
-        valid = false;
+        check('regGroupSize', 'Enter the number of people in your group (2-50).');
     }
-
-    if (!name || !/^[a-zA-Z\s]{2,}$/.test(name)) {
-        showFieldError('regName', 'Enter your full name using letters only (min 2 characters).');
-        valid = false;
-    }
-
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        showFieldError('regEmail', 'Enter a valid email address.');
-        valid = false;
-    }
-
-    if (!phone || !/^[+\d][\d\s\-()+]{6,17}$/.test(phone)) {
-        showFieldError('regPhone', 'Enter a valid phone number. Use digits, +, spaces, or dashes only.');
-        valid = false;
-    }
-
-    if (!dob) {
-        showFieldError('regDob', 'Date of birth is required.');
-        valid = false;
-    } else {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const birth = new Date(dob);
-        const ageYears = (today - birth) / (365.25 * 24 * 60 * 60 * 1000);
-        if (birth >= today) {
-            showFieldError('regDob', 'Date of birth cannot be today or in the future.');
-            valid = false;
-        } else if (ageYears < 5) {
-            showFieldError('regDob', 'You must be at least 5 years old to register.');
-            valid = false;
-        } else if (ageYears > 120) {
-            showFieldError('regDob', 'Please enter a valid date of birth.');
-            valid = false;
-        }
-    }
-
-    const passError = passwordPolicyError(pass);
-    if (passError) {
-        showFieldError('regPass', passError);
-        valid = false;
-    }
-
     return valid;
 }
 
@@ -441,7 +468,7 @@ const uiController = {
                     name:         document.getElementById('regName').value.trim(),
                     email:        document.getElementById('regEmail').value.trim(),
                     passwordHash: document.getElementById('regPass').value,
-                    phone:        document.getElementById('regPhone').value.trim(),
+                    phone:        Validate.normalizePhone(document.getElementById('regPhone').value) || document.getElementById('regPhone').value.trim(),
                     dateOfBirth:  document.getElementById('regDob').value,
                     role:         this._role === 'manager' ? 'MANAGER' : 'PLAYER',
                     username:     (document.getElementById('regUsername')?.value || '').trim(),
@@ -852,6 +879,8 @@ const changePasswordController = {
 // EVENT LISTENERS  (index.html)
 // ============================================================
 if (document.getElementById('loginForm')) {
+    const regDob = document.getElementById('regDob');
+    if (regDob) { regDob.max = todayIso(); regDob.min = '1920-01-01'; }   // no future birthdays
     document.getElementById('loginForm').addEventListener('submit',    e => uiController.captureCredentials('login', e));
     document.getElementById('registerForm').addEventListener('submit', e => uiController.captureCredentials('register', e));
     document.getElementById('resetForm').addEventListener('submit',    e => e.preventDefault());
@@ -1395,8 +1424,12 @@ const matchController = {
         const opponentName  = document.getElementById('matchOpponent').value.trim();
         const playerScore   = parseInt(document.getElementById('matchPlayerScore').value)   || 0;
         const opponentScore = parseInt(document.getElementById('matchOpponentScore').value) || 0;
-        if (!opponentName) {
-            this._showError("Please enter your opponent's name.");
+        if (opponentName.length < 2) {
+            this._showError("Please enter your opponent's name (at least 2 characters).");
+            return;
+        }
+        if (playerScore < 0 || opponentScore < 0 || playerScore > 999 || opponentScore > 999) {
+            this._showError('Scores must be between 0 and 999.');
             return;
         }
         const btn = document.getElementById('submitMatchBtn');
@@ -1615,6 +1648,26 @@ const facilityController = {
     editingId: null,
 
     /** Reads an error message from a failed API response. */
+    /** Returns what is wrong with the court form, or '' (mirrors CourtService.validate). */
+    _courtProblem(c) {
+        const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        if (!/^(?=.*\p{L})[\p{L}\d .,'&()#/-]{2,100}$/u.test(c.name)) return 'Court name: 2-100 characters with at least one letter.';
+        if (!(c.hourlyRate >= 100 && c.hourlyRate <= 100000)) return 'Hourly rate must be between PKR 100 and PKR 100,000.';
+        if (c.capacity < 0 || c.capacity > 100) return 'Capacity must be between 1 and 100 players.';
+        if (!c.openTime || !c.closeTime) return 'Enter the opening and closing times.';
+        if (c.openTime === c.closeTime) return 'Opening and closing times cannot be the same.';
+        if (!(c.slotDurationMinutes >= 30 && c.slotDurationMinutes <= 240 && c.slotDurationMinutes % 15 === 0))
+            return 'Slot length must be 30-240 minutes, in steps of 15.';
+        const day = mins(c.closeTime) > mins(c.openTime) ? mins(c.closeTime) - mins(c.openTime) : mins(c.closeTime) + 1440 - mins(c.openTime);
+        if (day < c.slotDurationMinutes) return 'The opening hours are shorter than one slot.';
+        if (!!c.peakStartTime !== !!c.peakEndTime) return 'Enter both the peak start and peak end time, or neither.';
+        if (c.peakStartTime && mins(c.peakEndTime) <= mins(c.peakStartTime)) return 'Peak end time must be after the peak start time.';
+        if (c.peakMultiplier < 1 || c.peakMultiplier > 3 || c.weekendMultiplier < 1 || c.weekendMultiplier > 3)
+            return 'Peak and weekend multipliers must be between 1.0 and 3.0.';
+        if ((c.description || '').length > 500) return 'Description can be at most 500 characters.';
+        return '';
+    },
+
     async _errorText(res, fallback) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) return 'Your session has expired. Please sign in again.';
@@ -1776,6 +1829,8 @@ const facilityController = {
         };
 
         try {
+            const problem = this._courtProblem(data);   // FR-35: same checks as the server
+            if (problem) throw new Error(problem);
             const url    = this.editingId ? `${COURT_API}/${this.editingId}` : COURT_API;
             const method = this.editingId ? 'PUT' : 'POST';
             let res;
@@ -1887,6 +1942,10 @@ const facilityController = {
         const to      = document.getElementById('maintTo').value;
         const msg     = document.getElementById('maintMsg');
         if (!from) { msg.textContent = 'Start date/time is required.'; msg.className = 'text-sm text-red-400 mt-2'; return; }
+        const fail = text => { msg.textContent = text; msg.className = 'text-sm text-red-400 mt-2'; };
+        if (new Date(from) <= new Date()) return fail('The start must be in the future.');
+        if (to && new Date(to) <= new Date(from)) return fail('The end must be after the start.');
+        if (to && (new Date(to) - new Date(from)) > 90 * 86400000) return fail('A maintenance window can last at most 90 days.');
         try {
             const res = await fetch(`${API_BASE}/api/manager/courts/${encodeURIComponent(courtID)}/schedule-maintenance`, {
                 method: 'POST',
@@ -1894,7 +1953,7 @@ const facilityController = {
                 body: JSON.stringify({ maintenanceFrom: from, maintenanceTo: to || null })
             });
             const data = await res.json();
-            if (!res.ok) { msg.textContent = data.error || 'Failed to schedule.'; msg.className = 'text-sm text-red-400 mt-2'; return; }
+            if (!res.ok) { msg.textContent = apiErrorText(data, 'Failed to schedule.'); msg.className = 'text-sm text-red-400 mt-2'; return; }
             msg.textContent = 'Maintenance scheduled successfully.';
             msg.className = 'text-sm text-teal-400 mt-2';
             setTimeout(() => this.closeMaintModal(), 1500);

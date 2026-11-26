@@ -49,6 +49,16 @@ public class Court {
     private LocalDateTime maintenanceFrom;  // slot bookings blocked from this datetime
     private LocalDateTime maintenanceTo;    // court reverts to AVAILABLE at this datetime
 
+    /** Typical number of players per sport, used when a manager leaves capacity empty. */
+    public static int defaultCapacity(String sportType) {
+        return switch (sportType == null ? "" : sportType) {
+            case "TENNIS", "BADMINTON", "SQUASH" -> 4;
+            case "BASKETBALL", "VOLLEYBALL", "FUTSAL" -> 12;
+            case "CRICKET", "FOOTBALL" -> 22;
+            default -> 10;
+        };
+    }
+
     @PrePersist
     protected void applyDefaults() {
         if (status == null || status.isBlank())         status = "AVAILABLE";

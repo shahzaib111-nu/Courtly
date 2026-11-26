@@ -148,14 +148,14 @@
                     </div>
                     <div>
                         <label class="text-xs text-slate-400 mb-1.5 block font-medium">Full Name</label>
-                        <input id="regName" type="text" required autocomplete="name"
+                        <input id="regName" type="text" required autocomplete="name" maxlength="100"
                             placeholder="e.g. Ali Hassan"
                             class="w-full bg-slate-800/60 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                         <p id="err-regName" class="hidden text-xs text-rose-400 mt-1.5"></p>
                     </div>
                     <div>
                         <label class="text-xs text-slate-400 mb-1.5 block font-medium">Email address</label>
-                        <input id="regEmail" type="email" required autocomplete="email"
+                        <input id="regEmail" type="email" required autocomplete="email" maxlength="100"
                             placeholder="you@example.com"
                             class="w-full bg-slate-800/60 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                         <p id="err-regEmail" class="hidden text-xs text-rose-400 mt-1.5"></p>
@@ -169,8 +169,8 @@
                     </div>
                     <div>
                         <label class="text-xs text-slate-400 mb-1.5 block font-medium">Phone Number</label>
-                        <input id="regPhone" type="tel" required autocomplete="tel"
-                            placeholder="+92 300 0000000"
+                        <input id="regPhone" type="tel" required autocomplete="tel" inputmode="tel" maxlength="16"
+                            placeholder="0300-1234567"
                             class="w-full bg-slate-800/60 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
                         <p id="err-regPhone" class="hidden text-xs text-rose-400 mt-1.5"></p>
                     </div>
@@ -213,6 +213,13 @@
                             </button>
                         </div>
                         <p id="err-regPass" class="hidden text-xs text-rose-400 mt-1.5"></p>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1.5 block font-medium">Confirm password</label>
+                        <input id="regConfirmPass" type="password" required autocomplete="new-password"
+                            placeholder="Repeat your password"
+                            class="w-full bg-slate-800/60 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+                        <p id="err-regConfirmPass" class="hidden text-xs text-rose-400 mt-1.5"></p>
                     </div>
                     <button id="registerSubmitBtn" type="submit"
                         class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all mt-2 shadow-[0_0_24px_rgba(99,102,241,0.35)]">

@@ -48,6 +48,13 @@ public class VerificationDocController {
             @RequestParam String playerEmail) {
         guard.requireSelfEmailOrAdmin(playerEmail);   // upload only to your own account
 
+        if (!com.scd.courtly.validation.Rules.DOC_TYPES.contains(docType)) {
+            return ResponseEntity.badRequest().body("Invalid document type. Choose Student ID, Senior Card or Family Card.");
+        }
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("The file is empty.");
+        }
+
         if (file.getSize() > MAX_FILE_SIZE) {
             return ResponseEntity.badRequest().body("File too large. Maximum allowed size is 5MB.");
         }

@@ -10,5 +10,5 @@ public record SubmitRatingRequest(
     @NotBlank String bookingID,
     @NotBlank String playerID,
     @NotNull @Min(1) @Max(5) Integer ratingScore,
-    @Size(max = 1000) String feedbackText
+    @Size(max = 500, message = "Feedback can be at most 500 characters") String feedbackText
 ) {}

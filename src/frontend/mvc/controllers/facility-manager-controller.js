@@ -118,6 +118,11 @@ const facilityInfoController = {
         };
         const err = document.getElementById('facilityError');
         const btn = document.getElementById('facSaveBtn');
+        const problem = body.name.length < 2 ? 'Facility name must be at least 2 characters.'
+            : body.location.length < 5 ? 'Enter the full location (at least 5 characters).'
+            : !body.openingTime || !body.closingTime ? 'Enter the opening and closing times.'
+            : body.openingTime === body.closingTime ? 'Opening and closing time cannot be the same.' : '';
+        if (problem) { err.textContent = problem; err.classList.remove('hidden'); return; }
         btn.disabled = true; btn.textContent = 'Saving…';
         try {
             const res  = await fetch(`${API_BASE}/api/facilities/${encodeURIComponent(this.facility.facilityID)}`, {

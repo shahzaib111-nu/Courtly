@@ -570,7 +570,7 @@ class AuthControllerTest extends IntegrationTest {
                 .andExpect(jsonPath("$.email").value(p.getEmail()));   // e-mail cannot change
 
             Player saved = playerRepository.findById(p.getUserID()).orElseThrow();
-            assertThat(saved.getPhone()).isEqualTo("+92 321 1234567");
+            assertThat(saved.getPhone()).isEqualTo("0321-1234567");   // stored in one format
             assertThat(saved.getDateOfBirth()).isEqualTo("1999-09-09");
         }
 
@@ -652,6 +652,107 @@ class AuthControllerTest extends IntegrationTest {
 
             mockMvc.perform(put("/api/auth/profile").contentType(MediaType.APPLICATION_JSON).content(json(changes())))
                 .andExpect(status().isUnauthorized());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("Input validation")
+    class InputValidation {
+
+        private org.springframework.test.web.servlet.ResultActions register(Map<String, Object> body) throws Exception {
+            return mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(json(body)));
+        }
+
+        @Test
+        @DisplayName("Pakistani mobile numbers are accepted in any common format and stored as 03XX-XXXXXXX")
+        void phoneFormats() throws Exception {
+            String[] ok = {"03001234567", "0300-1234567", "+92 300 1234567", "0092 300 1234567"};
+            for (int i = 0; i < ok.length; i++) {
+                Map<String, Object> body = registration("phone" + i + "@test.local", "PLAYER");
+                body.put("phone", ok[i]);
+                register(body).andExpect(status().isOk());
+                assertThat(playerRepository.findByEmail("phone" + i + "@test.local").orElseThrow().getPhone())
+                    .isEqualTo("0300-1234567");
+            }
+        }
+
+        @Test
+        @DisplayName("phone numbers that are not 11-digit Pakistani mobiles → 400")
+        void badPhones() throws Exception {
+            for (String bad : new String[]{"0300123456", "030012345678", "04212345678", "abc", "+1 555 123 4567", "0300-12a4567"}) {
+                Map<String, Object> body = registration("badphone@test.local", "PLAYER");
+                body.put("phone", bad);
+                register(body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.phone", containsString("11 digits starting with 03")));
+            }
+        }
+
+        @Test
+        @DisplayName("names with digits or symbols, and e-mails without a domain ending → 400")
+        void namesAndEmails() throws Exception {
+            Map<String, Object> body = registration("user@localhost", "PLAYER");
+            body.put("name", "R2-D2 <script>");
+            register(body)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists())
+                .andExpect(jsonPath("$.fieldErrors.email").exists());
+        }
+
+        @Test
+        @DisplayName("names like O'Brien and Muhammad Ali Jr. are allowed; e-mails are stored in lower case")
+        void validNames() throws Exception {
+            Map<String, Object> body = registration("Mixed.Case@Test.Local", "PLAYER");
+            body.put("name", "Ayesha O'Brien-Khan Jr.");
+            register(body).andExpect(status().isOk());
+            assertThat(playerRepository.findByEmail("mixed.case@test.local")).isPresent();
+            login("MIXED.CASE@test.local", "Secret123", "PLAYER").andExpect(status().isOk());   // any case works
+        }
+
+        @Test
+        @DisplayName("date of birth must be a real past date with age 5-100")
+        void dateOfBirth() throws Exception {
+            String future = java.time.LocalDate.now().plusDays(1).toString();
+            String toddler = java.time.LocalDate.now().minusYears(3).toString();
+            for (String bad : new String[]{future, toddler, "1900-01-01", "2000-13-45", "01/01/2000"}) {
+                Map<String, Object> body = registration("dob@test.local", "PLAYER");
+                body.put("dateOfBirth", bad);
+                register(body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.dateOfBirth").exists());
+            }
+        }
+
+        @Test
+        @DisplayName("arena managers must be at least 18")
+        void managerAge() throws Exception {
+            Map<String, Object> body = registration("young.manager@test.local", "MANAGER");
+            body.put("dateOfBirth", java.time.LocalDate.now().minusYears(16).toString());
+            register(body)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("at least 18")));
+        }
+
+        @Test
+        @DisplayName("student details: university e-mail must be academic, student ID alphanumeric")
+        void studentDetails() throws Exception {
+            Map<String, Object> body = registration("stud@test.local", "PLAYER");
+            body.put("category", "STUDENT");
+            body.put("universityEmail", "someone@gmail.com");
+            body.put("studentId", "22L 1234!");
+            register(body)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.universityEmail").exists())
+                .andExpect(jsonPath("$.fieldErrors.studentId").exists());
+        }
+
+        @Test
+        @DisplayName("an unknown role → 400")
+        void role() throws Exception {
+            register(registration("role@test.local", "ADMIN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.role").exists());
         }
     }
 }

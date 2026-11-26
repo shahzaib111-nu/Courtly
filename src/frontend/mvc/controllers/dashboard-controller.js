@@ -109,6 +109,7 @@ async function loadVerificationStatus() {
                 document.getElementById('editUsername').value  = p.username || '';
                 document.getElementById('editPhone').value     = p.phone || '';
                 document.getElementById('editDob').value       = p.dateOfBirth || '';
+                document.getElementById('editDob').max         = todayIso();
                 document.getElementById('editCategory').value  = p.category || 'REGULAR';
                 document.getElementById('editGroupSize').value = p.groupSize || '';
                 document.getElementById('editFamilySize').value = p.familySize || '';
@@ -152,6 +153,8 @@ async function loadVerificationStatus() {
                 if (body.category === 'GROUP') {
                     body.groupSize      = Number(document.getElementById('editGroupSize').value);
                     body.leadMemberName = document.getElementById('editLeadMember').value.trim();
+                    if (body.leadMemberName && Validate.name(body.leadMemberName))
+                        return this._error('Group lead: ' + Validate.name(body.leadMemberName));
                 }
                 if (body.category === 'FAMILY') {
                     const fs = document.getElementById('editFamilySize').value;
@@ -162,15 +165,15 @@ async function loadVerificationStatus() {
                 if (body.category === 'STUDENT') {
                     body.studentId       = document.getElementById('editStudentId').value.trim();
                     body.universityEmail = document.getElementById('editUniEmail').value.trim();
-                    if (body.universityEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.universityEmail))
-                        return this._error('Enter a valid university e-mail address.');
+                    const studentProblem = Validate.studentId(body.studentId) || Validate.universityEmail(body.universityEmail);
+                    if (studentProblem) return this._error(studentProblem);
                 }
 
-                if (body.name.length < 2)  return this._error('Enter your full name.');
-                if (body.username && !/^[A-Za-z0-9._]{3,30}$/.test(body.username))
-                    return this._error('Username: use 3-30 letters, numbers, dots or underscores.');
-                if (!body.phone)           return this._error('Enter your phone number.');
-                if (!body.dateOfBirth)     return this._error('Enter your date of birth.');
+                const isManager = localStorage.getItem('userRole') === 'manager';
+                const problem = Validate.name(body.name) || Validate.username(body.username)
+                    || Validate.phone(body.phone) || Validate.dateOfBirth(body.dateOfBirth, isManager ? 18 : 5);
+                if (problem) return this._error(problem);
+                body.phone = Validate.normalizePhone(body.phone);
                 if (body.category === 'GROUP' && !(body.groupSize >= 2 && body.groupSize <= 50))
                     return this._error('Enter the number of people in your group (2-50).');
 

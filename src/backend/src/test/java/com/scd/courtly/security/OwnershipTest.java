@@ -141,7 +141,7 @@ class OwnershipTest extends IntegrationTest {
             mockMvc.perform(post("/api/matches/submit").header("Authorization", tokenFor(attacker))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(json(Map.of("bookingID", victimBooking.getBookingID(), "playerID", victim.getUserID(),
-                        "opponentName", "x", "playerScore", 0, "opponentScore", 9, "result", "LOSS"))))
+                        "opponentName", "Rival", "playerScore", 0, "opponentScore", 9, "result", "LOSS"))))
                 .andExpect(status().isForbidden());
         }
     }

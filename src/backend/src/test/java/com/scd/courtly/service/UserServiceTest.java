@@ -54,7 +54,7 @@ class UserServiceTest {
         Player p = Fixtures.player("U-1", email);
         p.setRole(role);
         p.setPasswordHash(rawPassword == null ? null : passwordEncoder.encode(rawPassword));
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(p));
+        when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(p));
         return p;
     }
 
@@ -216,7 +216,7 @@ class UserServiceTest {
 
             assertThat(r.success()).isTrue();
             assertThat(r.email()).isEqualTo("p@x.com");   // the browser needs the real e-mail
-            verify(userRepository, never()).findByEmail(any());
+            verify(userRepository, never()).findByEmailIgnoreCase(any());
         }
     }
 

@@ -155,4 +155,63 @@ class CourtServiceTest {
             verify(courtRepository, never()).deleteById(any());
         }
     }
+
+    @Nested
+    @DisplayName("FR-35: court information is validated before saving")
+    class Validation {
+
+        private void invalid(java.util.function.Consumer<Court> change, String message) {
+            Court c = Fixtures.court(null);
+            change.accept(c);
+            assertThatThrownBy(() -> service.createCourt(c))
+                .isInstanceOf(com.scd.courtly.exception.BusinessException.class)
+                .hasMessageContaining(message);
+            verify(courtRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a complete court is saved")
+        void valid() {
+            when(courtRepository.save(any())).thenAnswer(returnsFirstArg());
+            assertThat(service.createCourt(Fixtures.court(null)).getName()).isEqualTo("Test Court null");
+        }
+
+        @Test @DisplayName("name") void name() {
+            invalid(c -> c.setName("1"), "Court name");
+            invalid(c -> c.setName("12345"), "Court name");
+        }
+        @Test @DisplayName("sport") void sport() { invalid(c -> c.setSportType("CHESS"), "Sport must be"); }
+        @Test @DisplayName("hourly rate") void rate() {
+            invalid(c -> c.setHourlyRate(-5), "Hourly rate");
+            invalid(c -> c.setHourlyRate(500_000), "Hourly rate");
+        }
+        @Test @DisplayName("capacity") void capacity() { invalid(c -> c.setCapacity(500), "Capacity"); }
+        @Test @DisplayName("opening hours") void hours() {
+            invalid(c -> c.setOpenTime("25:00"), "HH:mm");
+            invalid(c -> c.setCloseTime(c.getOpenTime()), "cannot be the same");
+            invalid(c -> { c.setOpenTime("10:00"); c.setCloseTime("10:30"); }, "shorter than one slot");
+        }
+        @Test @DisplayName("slot length") void slot() { invalid(c -> c.setSlotDurationMinutes(37), "Slot length"); }
+        @Test @DisplayName("peak hours") void peak() {
+            invalid(c -> c.setPeakEndTime(null), "both the peak start and peak end");
+            invalid(c -> { c.setPeakStartTime("20:00"); c.setPeakEndTime("18:00"); }, "after the peak start");
+        }
+        @Test @DisplayName("multipliers") void multipliers() { invalid(c -> c.setPeakMultiplier(5), "multipliers"); }
+        @Test @DisplayName("status") void status() { invalid(c -> c.setStatus("BROKEN"), "Status must be"); }
+
+        @Test
+        @DisplayName("missing optional fields get sensible defaults")
+        void defaults() {
+            when(courtRepository.save(any())).thenAnswer(returnsFirstArg());
+            Court c = new Court();
+            c.setName("Minimal Court");
+            c.setSportType("football");
+            c.setHourlyRate(2000);
+            Court saved = service.createCourt(c);
+            assertThat(saved.getSportType()).isEqualTo("FOOTBALL");
+            assertThat(saved.getCapacity()).isEqualTo(22);
+            assertThat(saved.getSlotDurationMinutes()).isEqualTo(60);
+            assertThat(saved.getStatus()).isEqualTo("AVAILABLE");
+        }
+    }
 }
