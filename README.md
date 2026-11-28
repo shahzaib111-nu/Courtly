@@ -1,6 +1,6 @@
 # Courtly — Sports Court Booking System
 
-A web-based platform for discovering, booking, and managing sports courts across Lahore. Built with Spring Boot (H2) on the backend and plain HTML/JS/Tailwind on the frontend.
+A web-based platform for discovering, booking, and managing sports courts across Lahore. Built with Spring Boot (H2) on the backend and React + TypeScript (Vite, Tailwind CSS) on the frontend.
 
 ---
 
@@ -8,7 +8,8 @@ A web-based platform for discovering, booking, and managing sports courts across
 
 | Tool | Version | Notes |
 |---|---|---|
-| **Java JDK** | **21** | Only hard requirement — download from [Adoptium](https://adoptium.net/) |
+| **Java JDK** | **21** | Runs the backend — download from [Adoptium](https://adoptium.net/) |
+| **Node.js** | **20.19+ or 22.12+** | Runs the frontend (`npm`) — download the LTS from [nodejs.org](https://nodejs.org/) |
 | Maven | — | **Not needed** — Maven wrapper (`mvnw`) is bundled |
 | Browser | Any modern | Chrome / Edge / Firefox |
 
@@ -42,11 +43,19 @@ cd src/backend
 
 > First run downloads Maven dependencies — allow 2–3 minutes. You will see `Started ProjectApplication` when it's ready.
 
-**4. Open the frontend**
+**4. Start the frontend** (needs Node.js 20.19+ or 22.12+)
 
-Open `src/frontend/index.html` in your browser (VS Code Live Server recommended, or any static HTTP server on port 5500).
+```bash
+cd src/frontend
+npm ci          # first time, or after package.json changes
+npm run dev
+```
 
-Backend API runs on: `http://localhost:8081` (`server.port` in `application.properties`). The frontend reads the backend address from the single `API_BASE` constant at the top of `src/frontend/app.js`, so change both together if you change the port.
+Open <http://localhost:5501>. Administrators sign in at <http://localhost:5501/login?role=admin>.
+
+The backend API runs on `http://localhost:8081` (`server.port` in `application.properties`). The frontend reads that address from `API_BASE` in `src/frontend/src/lib/api.ts`, so change both if you change the port. See `src/frontend/README.md` for the build, routes and architecture.
+
+> Do not use VS Code Live Server any more: the React app must be served by Vite (`npm run dev`), which also uses port 5501.
 
 ---
 
@@ -75,7 +84,7 @@ Players and Arena Managers can also sign in with **Google** or **GitHub**. Socia
 
 ### How it works
 1. `index.html` calls `GET /api/auth/oauth2/providers` and shows a button for each configured provider.
-2. The button opens `GET /api/auth/oauth2/authorize/{google|github}?redirect_uri=<frontend>/oauth-callback.html&role=PLAYER|MANAGER`.
+2. The button opens `GET /api/auth/oauth2/authorize/{google|github}?redirect_uri=<frontend>/oauth-callback&role=PLAYER|MANAGER`.
 3. Spring Security sends the user to the provider, which calls back to `/login/oauth2/code/{provider}`.
 4. `OAuth2AccountService` finds the account by provider id. If none is found, it links an existing account with the same **verified** email or creates a new one. It then issues a JWT.
 5. The backend redirects to `oauth-callback.html#token=...`. The callback page saves the session and opens the right dashboard.
@@ -104,14 +113,14 @@ Hibernate (`ddl-auto=update`) adds two columns to `app_users` on the next start:
          client-secret: "GOCSPX-..."
    ```
    The file is git-ignored, so never commit it. A provider left blank is turned off, and its button stays hidden. You can also use the `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` environment variables; they are used when the YAML value is blank.
-4. Serve the frontend from an allowed origin. The defaults are ports `5500` and `5501` on `localhost` and `127.0.0.1` (Live Server; this project's `.vscode/settings.json` uses 5501). To use other origins, set `OAUTH2_ALLOWED_REDIRECT_ORIGINS` to a comma-separated list.
+4. Serve the frontend from an allowed origin. The defaults are ports `5500` and `5501` on `localhost` and `127.0.0.1`; `npm run dev` uses `http://localhost:5501`. To use other origins, set `OAUTH2_ALLOWED_REDIRECT_ORIGINS` to a comma-separated list.
 
 ### MVC layout
 | Layer | Backend | Frontend |
 |---|---|---|
-| Model | `User.authProvider` / `providerId`, `OAuth2UserProfile` | `mvc/models/oauth-model.js` |
-| View | — | `index.html` (buttons), `oauth-callback.html` |
-| Controller | `OAuth2Controller`, `OAuth2LoginSuccessHandler` / `FailureHandler` | `mvc/controllers/oauth-controller.js` |
+| Model | `User.authProvider` / `providerId`, `OAuth2UserProfile` | `src/lib/contracts.ts`, `src/lib/session.tsx` |
+| View | — | `src/pages/auth.tsx` (provider buttons, `/oauth-callback` route) |
+| Controller | `OAuth2Controller`, `OAuth2LoginSuccessHandler` / `FailureHandler` | `src/lib/api.ts` (provider discovery and authorize redirect) |
 | Service | `OAuth2AccountService`, `CustomOAuth2UserService` | — |
 
 ## Payments (Stripe test mode)
@@ -182,7 +191,7 @@ The caller's identity always comes from the verified JWT, never from IDs in the 
 - Managers only see and change **their own** courts, bookings and maintenance. A new court always belongs to the manager who creates it.
 - Managers awaiting approval (`PENDING_APPROVAL` / `REJECTED`) have no manager rights until an admin approves them.
 - Uploaded ID documents can only be viewed by admins.
-- Only the frontend origins in `app.cors.allowed-origins` may call the API from a browser (defaults: Live Server on ports 5500/5501).
+- Only the frontend origins in `app.cors.allowed-origins` may call the API from a browser (defaults: ports 5500/5501; `npm run dev` uses 5501).
 
 ### Accounts and passwords
 
@@ -351,12 +360,13 @@ Courtly/
 │   │       └── resources/
 │   │           ├── application.properties
 │   │           └── data.sql     # Auto-seeded mock data
-│   └── frontend/                # MVC frontend (HTML Views + JS Controllers)
-│       ├── index.html           # Login / Registration view
-│       ├── dashboard.html       # Player dashboard view
-│       ├── admin.html           # Admin dashboard view
-│       ├── facility-manager.html
-│       ├── checkout.html
-│       ├── app.js               # Shared controllers and API integration
-│       └── mvc/controllers/     # Extracted page controllers
+│   └── frontend/                # React + TypeScript app (Vite, Tailwind CSS)
+│       ├── package.json         # npm run dev / build / typecheck
+│       ├── index.html           # Vite entry page
+│       ├── public/              # Images and font licenses
+│       └── src/
+│           ├── main.tsx         # Routes and route guards
+│           ├── pages/           # Public, auth, player, manager and admin screens
+│           ├── components/      # Layouts, forms, tables, charts
+│           └── lib/             # API adapters, session, validation, exports
 ```

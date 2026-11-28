@@ -1,25 +1,4 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
-    "debug.java.checkBuildStatus": false,
-    "liveServer.settings.port": 5501,
-    "liveServer.settings.ignoreFiles": [
-        ".vscode/**",
-        ".git/**",
-        ".github/**",
-        "database/**",
-        "backups/**",
-        "uploads/**",
-        "scripts/**",
-        "docs/**",
-        "src/backend/**",
-        "**/*.mv.db",
-        "**/*.trace.db",
-        "**/*.lock.db",
-        "**/target/**",
-        "**/*.log",
-        "**/*.java",
-        "**/*.md",
-        "**/*.yml"
-    ],
-    "liveServer.settings.wait": 300
+    "debug.java.checkBuildStatus": false
 }
